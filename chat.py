@@ -105,7 +105,7 @@ class Server:
         """
         Inicia o servidor, conectando-se ao endereço e porta específicadas e espera por conexões.
         """
-        print(f"Servidor aberto no ip: {socket.gethostbyname(socket.gethostname())}")
+        print(f"Servidor aberto no ip: {self.address}:{self.port}")
         self.connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.connection.bind((self.address, self.port))
         self.connection.listen()
@@ -211,16 +211,16 @@ class Client:
 
 address = input("Endereço do servidor: ")
 port = int(input("Porta do servidor: "))
-tipo = input("Iniciar servidor(S) ou cliente(C)?: ")
+type = input("Iniciar servidor(S) ou cliente(C)?: ")
 
 if port < 1000 or port > 65535:
     print("Porta deve estar entre 1000 e 65535 (inclusivo)")
     sys.exit(1)
 
-if tipo.lower() == "s" or tipo.lower() == "servidor":
+if type.lower() == "s" or type.lower() == "servidor":
     server = Server(address, port)
     server.run()
-elif tipo.lower() == "c" or tipo.lower() == "cliente":
+elif type.lower() == "c" or type.lower() == "cliente":
     nick = input("Nome de usuário: ")
     client = Client(nick)
     client.run(address, port)
