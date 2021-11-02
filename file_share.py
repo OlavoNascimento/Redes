@@ -76,15 +76,22 @@ class Client:
             if size == b"":
                 self.stop()
                 return
+            # Socket foi aberto, ainda não foi iniciado a transmissão do arquivo.
             if size == b"\x00\x00\x00\x00":
                 return
-            print(size)
             size = int.from_bytes(size, "big")
 
             print("Recebendo arquivo")
             buffer = b""
+            last_received = 0
             while len(buffer) < size:
                 data = self.connection.recv(size - len(buffer))
+
+                received = round((len(buffer) / size) * 100, 2)
+                if int(received) >= last_received + 5:
+                    print(f"Recebido {received}%")
+                    last_received = received
+
                 if not data:
                     print("Arquivo incompleto recebido")
                     break
@@ -139,9 +146,18 @@ class Client:
         print("Iniciando envio do arquivo")
         with open(file_path, "rb") as file:
             data = file.read(1000)
+            last_sent = 0
+            packet_index = 1
             while data:
                 self.connection.send(data)
+
+                sent = round(((1000 * packet_index) / size) * 100, 2)
+                if int(sent) >= last_sent + 5:
+                    print(f"Enviado {sent}%")
+                    last_sent = sent
+
                 data = file.read(1000)
+                packet_index += 1
         print("Arquivo enviado")
 
         end_time = datetime.datetime.now()
@@ -153,6 +169,7 @@ class Client:
             print(f"Tamanho do arquivo: {size} bytes")
             print(f"Número de pacotes: {ceil(size/packet_size)}")
             print(f"Velocidade de transmissão: {round((size * 8) / delta, 2)} Mb/s\n")
+        self.stop()
 
     def stop(self):
         """
