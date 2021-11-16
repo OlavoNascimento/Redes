@@ -26,7 +26,7 @@ class Client:
         # Socket que gerencia a conexão ao outro usuário.
         self.connection = None
 
-    def handle_connection(self, filename):
+    def handle_connection(self, filename, packet_size):
         """
         Gerencia o envio de mensagens do usuário ao servidor e o recebimento de mensagens do
         servidor.
@@ -46,11 +46,11 @@ class Client:
             )
             for socks in read_sockets:
                 if socks == self.connection:
-                    self.receive(filename)
+                    self.receive(filename, packet_size)
                 elif socks == self.server and self.connection is None:
                     client = self.accept_connection()
                     sockets_to_watch.append(client)
-                    self.send_file(filename)
+                    self.send_file(filename, packet_size)
 
             # Remove usuários caso uma exceção ocorra no socket.
             for notified_socket in exception_sockets:
@@ -64,12 +64,27 @@ class Client:
         self.connection = client
         return client
 
-    def receive(self, filename):
+    @staticmethod
+    def report(packet_size, size, start_time, end_time):
+        """
+        Apresenta um relatório sobre a transmissão do arquivo.
+        """
+        delta = end_time - start_time
+        delta = max(delta.seconds, 1)
+
+        print(f"Relatório para um pacote de {packet_size} bytes")
+        print(f"Tamanho do arquivo: {size} bytes")
+        print(f"Número de pacotes: {ceil(size/packet_size)} pacotes")
+        print(f"Velocidade de transmissão: {round((size * 8) / delta, 2)} b/s")
+
+    def receive(self, filename, packet_size):
         """
         Recebe uma mensagem do servidor.
         Caso o servidor feche a conexão ou um erro aconteça o cliente é finalizado corretamente.
         """
         try:
+            start_time = datetime.datetime.now()
+
             size = self.connection.recv(4)
             # Se a mensagem possui zero bytes o servidor fechou a conexão.
             # Veja: https://docs.python.org/3/howto/sockets.html#using-a-socket
@@ -99,18 +114,23 @@ class Client:
 
             with open(filename, "wb") as output:
                 output.write(buffer)
+
+            end_time = datetime.datetime.now()
+            self.report(packet_size, size, start_time, end_time)
             print("Arquivo recebido")
         except InterruptedError:
             print("Erro! Fechando a conexão...")
             self.stop()
 
-    def run(self, connection_type, address, port, file_path):
+    def run(self, connection_type, address, port, packet_size, file_path):
         """
         Executa o cliente até ctrl+c ser pressionado.
         """
         try:
             self.start(connection_type, address, port)
-            self.handle_connection(file_path)
+            if connection_type == ConnectionTypes.SERVER:
+                print("Esperando um cliente se conectar...")
+            self.handle_connection(file_path, packet_size)
         except KeyboardInterrupt:
             pass
         finally:
@@ -129,7 +149,7 @@ class Client:
             self.server.bind((address, port))
             self.server.listen()
 
-    def send_file(self, file_path):
+    def send_file(self, file_path, packet_size):
         """
         Envia um arquivo ao outro usuário.
         """
@@ -161,14 +181,7 @@ class Client:
         print("Arquivo enviado")
 
         end_time = datetime.datetime.now()
-        delta = end_time - start_time
-        delta = max(delta.seconds, 1)
-
-        for packet_size in [100, 500, 1000, 1500]:
-            print(f"Relatório para um pacote de {packet_size} bytes")
-            print(f"Tamanho do arquivo: {size} bytes")
-            print(f"Número de pacotes: {ceil(size/packet_size)}")
-            print(f"Velocidade de transmissão: {round((size * 8) / delta, 2)} Mb/s\n")
+        self.report(packet_size, size, start_time, end_time)
         self.stop()
 
     def stop(self):
@@ -186,7 +199,8 @@ class Client:
 
 app_address = input("Endereço: ")
 app_port = int(input("Porta: "))
-app_type = input("Iniciar servidor(S) ou cliente(C)?: ")
+app_type = input("Receber(R) ou enviar(E)?: ")
+pack_size = int(input("Tamanho do pacote: "))
 
 if app_port < 1000 or app_port > 65535:
     print("Porta deve estar entre 1000 e 65535 (inclusivo)")
@@ -195,11 +209,11 @@ if app_port < 1000 or app_port > 65535:
 
 app_client = Client()
 
-if app_type.lower() == "c" or app_type.lower() == "cliente":
+if app_type.lower() == "r" or app_type.lower() == "cliente":
     path = input("Nome do arquivo a ser criado: ")
     app_type = ConnectionTypes.CLIENT
-elif app_type.lower() == "s" or app_type.lower() == "servidor":
+elif app_type.lower() == "e" or app_type.lower() == "servidor":
     path = input("Caminho do arquivo a ser enviado: ")
     app_type = ConnectionTypes.SERVER
 
-app_client.run(app_type, app_address, app_port, path)
+app_client.run(app_type, app_address, app_port, pack_size, path)
