@@ -102,7 +102,9 @@ class Client:
         if self.connection_type == ConnectionTypes.CLIENT:
             self.connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.connection.connect((address, port))
-            self.connection.send(f"{str(address)} se conectou com nick {self.nick}".encode("utf-8"))
+            message = f"{str(address)} se conectou com nick {self.nick}"
+            print(message)
+            self.connection.send(message.encode("utf-8"))
         elif self.connection_type == ConnectionTypes.SERVER:
             self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             self.server.bind((address, port))
