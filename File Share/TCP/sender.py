@@ -74,7 +74,7 @@ class Sender(Client):
 
     def start(self, address, port):
         """
-        Conecta-se ao servidor no endereço e porta especificados.
+        Inicia o servidor no endereço e porta especificados.
         """
         self.connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.connection.bind((address, port))
