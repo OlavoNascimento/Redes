@@ -135,47 +135,44 @@ class Receiver(Client):
         Retorna verdadeiro caso a conexão deva ser finalizada
         """
         start_time = datetime.datetime.now()
-        try:
-            packet, address = self.connection.recvfrom(8)
-            if packet == b"":
-                print("Erro ao receber o nome do arquivo!")
-                return True
-            file_size = int.from_bytes(packet, "big")
-            packet, _ = self.connection.recvfrom(1024)
-            if packet == b"":
-                print("Erro ao receber o nome do arquivo!")
-                return True
-            file_name = packet.decode("utf-8")
-            self.address = address
+        
+        packet, address = self.connection.recvfrom(8)
+        if packet == b"":
+            print("Erro ao receber o nome do arquivo!")
+            return True
+        file_size = int.from_bytes(packet, "big")
+        
+        packet, _ = self.connection.recvfrom(1024)
+        if packet == b"":
+            print("Erro ao receber o tamanho do arquivo!")
+            return True
+        file_name = packet.decode("utf-8")
+        
+        print(f"Recebendo arquivo: {file_name} ({self.format_bytes(file_size)})")
+        self.address = address
+        # Porcentagem já enviada.
+        progress = 0
 
-            print(f"Recebendo arquivo: {file_name} ({self.format_bytes(file_size)})")
+        while self.buffer_size < file_size:
+            packet = self.receive_packet()
+            # Verifica se houve erro na transmissão do pacote.
+            if not self.check_package(packet):
+                continue
 
-            # Porcentagem já enviada.
-            progress = 0
+            self.send_ack()
+            progress = self.print_progress_message(
+                len(self.buffer), file_size, progress, "Recebido"
+            )
+            self.buffer.append(packet[2])
+            self.buffer_size += packet[1]
+            self.current_package += 1
 
-            while self.buffer_size < file_size:
-                packet = self.receive_packet()
-                # Verifica se houve erro na transmissão do pacote.
-                if not self.check_package(packet):
-                    continue
+        with open(file_name, "wb") as output:
+            output.write(b"".join(self.buffer))
 
-                self.send_ack()
-                progress = self.print_progress_message(
-                    len(self.buffer), file_size, progress, "Recebido"
-                )
-                self.buffer.append(packet[2])
-                self.buffer_size += packet[1]
-                self.current_package += 1
-
-            with open(file_name, "wb") as output:
-                output.write(b"".join(self.buffer))
-
-            end_time = datetime.datetime.now()
-            print("Arquivo recebido")
-            self.report(file_size, start_time, end_time)
-        except InterruptedError:
-            print("Erro! Fechando a conexão...")
-            return False
+        end_time = datetime.datetime.now()
+        print("Arquivo recebido")
+        self.report(file_size, start_time, end_time)
         return True
 
     def prepare_socket(self, address: str, port: int):
@@ -185,3 +182,4 @@ class Receiver(Client):
         self.connection.connect((address, port))
         # Avisa o outro usuário que o cliente está pronto para receber o arquivo.
         self.connection.sendto(b"", (address, port))
+

@@ -70,9 +70,7 @@ class Sender(Client):
         Preenche a janela com pacotes.
         """
         with open(self.file_path, "rb") as file:
-            for _ in range(self.window_size):
-                if not self.can_add_to_window():
-                    break
+            while self.can_add_to_window():
                 # Avança até a última posição lida no arquivo.
                 file.seek(self.last_file_offset)
                 data_chunk = file.read(self.packet_size)
@@ -174,3 +172,4 @@ class Sender(Client):
         """
         print("Esperando um cliente se conectar...")
         self.connection.bind((address, port))
+
