@@ -135,19 +135,19 @@ class Receiver(Client):
         Retorna verdadeiro caso a conexão deva ser finalizada
         """
         start_time = datetime.datetime.now()
-        
+
         packet, address = self.connection.recvfrom(8)
         if packet == b"":
             print("Erro ao receber o nome do arquivo!")
             return True
         file_size = int.from_bytes(packet, "big")
-        
+
         packet, _ = self.connection.recvfrom(1024)
         if packet == b"":
             print("Erro ao receber o tamanho do arquivo!")
             return True
         file_name = packet.decode("utf-8")
-        
+
         print(f"Recebendo arquivo: {file_name} ({self.format_bytes(file_size)})")
         self.address = address
         # Porcentagem já enviada.
@@ -161,7 +161,7 @@ class Receiver(Client):
 
             self.send_ack()
             progress = self.print_progress_message(
-                len(self.buffer), file_size, progress, "Recebido"
+                self.buffer_size, file_size, progress, "Recebido"
             )
             self.buffer.append(packet[2])
             self.buffer_size += packet[1]
@@ -182,4 +182,3 @@ class Receiver(Client):
         self.connection.connect((address, port))
         # Avisa o outro usuário que o cliente está pronto para receber o arquivo.
         self.connection.sendto(b"", (address, port))
-
