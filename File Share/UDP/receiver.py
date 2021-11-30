@@ -1,7 +1,7 @@
 from collections import deque
 import datetime
 import logging
-import socket
+from socket import timeout
 from typing import Deque
 
 from client import Client
@@ -53,7 +53,7 @@ class Receiver(Client):
         # Tamanho do pacote a ser recebido.
         try:
             data, _ = self.connection.recvfrom(8 + 8 + 32 + self.packet_size)
-        except socket.timeout:
+        except timeout:
             logging.debug("Socket recebeu timeout!")
             return None, None, None, None
 

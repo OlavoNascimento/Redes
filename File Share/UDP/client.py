@@ -19,8 +19,8 @@ class Client:
         self.packet_size = packet_size
         # Socket que envia o arquivo ao outro usuário.
         self.connection = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        # Socket espera 2 segundos para reenviar um pacote.
-        self.connection.settimeout(2)
+        # Socket espera 1 segundo para reenviar um pacote.
+        self.connection.settimeout(0.07)
 
     def __del__(self):
         """

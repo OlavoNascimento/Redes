@@ -91,9 +91,12 @@ class Sender(Client):
             int.from_bytes(packet.content[0:8], "big"),
             len(packet.content),
         )
-        self.connection.sendto(packet.content, address)
-        packet.is_awaiting_ack = True
-        time.sleep(0.005)
+        try:
+            self.connection.sendto(packet.content, address)
+            packet.is_awaiting_ack = True
+            return True
+        except timeout:
+            return False
 
     def resend(self):
         """
@@ -133,7 +136,11 @@ class Sender(Client):
             # Caso ainda algum pacote da janela não tenha sido enviado, tenta envia-lo.
             for element in self.window:
                 if not element.is_awaiting_ack:
-                    self.send_packet(element, address)
+                    packet_status = self.send_packet(element, address)
+                    # Pacote falhou ao ser enviado, pacotes subsequente não devem ser enviados, já
+                    # que a ordem da janela deve ser mantida.
+                    if not packet_status:
+                        break
 
             progress = self.print_progress_message(
                 self.packet_size * self.current_package, file_size, progress, "Enviado"
