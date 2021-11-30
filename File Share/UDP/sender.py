@@ -152,6 +152,10 @@ class Sender(Client):
                 logging.debug("Socket recebeu timeout!")
                 self.resend()
                 continue
+            # Uma mensagem vazia significa que o outro usuário recebeu todo o arquivo.
+            if message == b"":
+                break
+
             ack_packet_index = int.from_bytes(message[0:8], "big")
             status = message[8:].decode("ascii")
             logging.debug(
