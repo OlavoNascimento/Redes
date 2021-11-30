@@ -119,11 +119,10 @@ class Sender(Client):
         file_size = os.path.getsize(self.file_path)
         start_time = datetime.datetime.now()
 
-        # Envia o tamanho do arquivo
-        self.connection.sendto(file_size.to_bytes(8, "big"), address)
-        # Envia o nome do arquivo
+        # Envia o nome e tamanho do arquivo.
         file_name = os.path.basename(self.file_path)
-        self.connection.sendto(file_name.encode("utf-8"), address)
+        packet = file_size.to_bytes(8, "big") + file_name.encode("utf-8")
+        self.connection.sendto(packet, address)
         print(f"Enviando arquivo: {self.file_path} ({self.format_bytes(file_size)})")
 
         progress = 0

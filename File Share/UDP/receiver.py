@@ -135,17 +135,12 @@ class Receiver(Client):
         """
         start_time = datetime.datetime.now()
 
-        packet, address = self.connection.recvfrom(8)
+        packet, address = self.connection.recvfrom(1032)
         if packet == b"":
-            print("Erro ao receber o nome do arquivo!")
+            print("Erro ao receber o nome e tamanho do arquivo!")
             return True
-        file_size = int.from_bytes(packet, "big")
-
-        packet, _ = self.connection.recvfrom(1024)
-        if packet == b"":
-            print("Erro ao receber o tamanho do arquivo!")
-            return True
-        file_name = packet.decode("utf-8")
+        file_size = int.from_bytes(packet[0:8], "big")
+        file_name = packet[8:].decode("utf-8")
 
         print(f"Recebendo arquivo: {file_name} ({self.format_bytes(file_size)})")
         self.address = address
