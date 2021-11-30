@@ -1,2 +1,3 @@
-# Chat-Python
-Chat using Python sockets.
+# Redes-Python
+Programas em Python utilizando sockets.
+

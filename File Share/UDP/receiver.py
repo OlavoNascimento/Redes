@@ -164,10 +164,11 @@ class Receiver(Client):
             self.buffer_size += packet[1]
             self.current_package += 1
 
+        self.connection.sendto(b"", address)
+
         with open(file_name, "wb") as output:
             output.write(b"".join(self.buffer))
 
-        self.connection.sendto(b"", address)
         end_time = datetime.datetime.now()
         print("Arquivo recebido")
         self.report(file_size, failed_packages, start_time, end_time)

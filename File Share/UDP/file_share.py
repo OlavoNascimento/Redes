@@ -13,7 +13,7 @@ from sender import Sender
 
 def main():
     # Habilita mensagens de debug
-    # logging.basicConfig(level=logging.DEBUG)
+    logging.basicConfig(level=logging.DEBUG)
 
     app_address = input("Endereço: ")
     app_port = int(input("Porta: "))
