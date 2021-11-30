@@ -1,7 +1,6 @@
 import datetime
 import logging
 import os
-import time
 from collections import deque
 from dataclasses import dataclass
 from socket import timeout
@@ -137,7 +136,7 @@ class Sender(Client):
             for element in self.window:
                 if not element.is_awaiting_ack:
                     packet_status = self.send_packet(element, address)
-                    # Pacote falhou ao ser enviado, pacotes subsequente não devem ser enviados, já
+                    # Pacote falhou ao ser enviado, pacotes subsequentes não devem ser enviados, já
                     # que a ordem da janela deve ser mantida.
                     if not packet_status:
                         break

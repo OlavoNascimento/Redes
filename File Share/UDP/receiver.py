@@ -90,16 +90,15 @@ class Receiver(Client):
         if self.current_package > packet_index:
             diff = self.current_package - packet_index
             logging.debug(
-                "Recebido pacote maior que o esperado: esperado %s, encontrado: %s, removendo os últimos %s pacotes",
+                "Recebido pacote maior que o esperado: esperado %s, encontrado: %s, reenviando %s ACKs",
                 self.current_package,
                 packet_index,
                 diff,
             )
-            for _ in range(diff):
-                removed_packet = self.buffer.pop()
-                self.buffer_size -= len(removed_packet)
             self.current_package = packet_index
-            self.send_nack()
+            for _ in range(diff):
+                self.send_ack()
+                self.current_package += 1
             return False
 
         if packet_index < self.current_package:
