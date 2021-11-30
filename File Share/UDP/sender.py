@@ -114,17 +114,19 @@ class Sender(Client):
             return False
         logging.debug("Mensagem inicial recebida")
 
-        size = os.path.getsize(self.file_path)
+        file_size = os.path.getsize(self.file_path)
         start_time = datetime.datetime.now()
 
         # Envia o tamanho do arquivo
-        self.connection.sendto(size.to_bytes(8, "big"), address)
+        self.connection.sendto(file_size.to_bytes(8, "big"), address)
         # Envia o nome do arquivo
         file_name = os.path.basename(self.file_path)
         self.connection.sendto(file_name.encode("utf-8"), address)
-        print(f"Enviando arquivo: {self.file_path} ({self.format_bytes(size)})")
+        print(f"Enviando arquivo: {self.file_path} ({self.format_bytes(file_size)})")
 
         progress = 0
+        # Pacotes que tiveram que ser reenviados.
+        failed_packages = 0
         self.add_packets_to_window()
 
         while len(self.window) > 0:
@@ -134,7 +136,7 @@ class Sender(Client):
                     self.send_packet(element, address)
 
             progress = self.print_progress_message(
-                self.packet_size * self.current_package, size, progress, "Enviado"
+                self.packet_size * self.current_package, file_size, progress, "Enviado"
             )
 
             # Espera receber uma mensagem do outro usuário.
@@ -158,12 +160,13 @@ class Sender(Client):
                 self.current_package += 1
                 self.add_packets_to_window()
             else:
+                failed_packages += 1
                 self.resend()
 
         self.connection.sendto(b"", address)
         end_time = datetime.datetime.now()
         print("Arquivo enviado")
-        self.report(size, start_time, end_time)
+        self.report(file_size, failed_packages, start_time, end_time)
         return True
 
     def prepare_socket(self, address: str, port: int):
@@ -172,4 +175,3 @@ class Sender(Client):
         """
         print("Esperando um cliente se conectar...")
         self.connection.bind((address, port))
-

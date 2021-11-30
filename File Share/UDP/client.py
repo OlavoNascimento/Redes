@@ -81,7 +81,7 @@ class Client:
             return sent
         return last_received
 
-    def report(self, size: float, start_time: datetime, end_time: datetime):
+    def report(self, size: float, failed_packages: int, start_time: datetime, end_time: datetime):
         """
         Apresenta um relatório sobre a transmissão do arquivo.
         """
@@ -92,6 +92,7 @@ class Client:
         print(f"Tamanho do arquivo: {self.format_bytes(size)} ({size} bytes)")
         print(f"Número de pacotes: {ceil(size/self.packet_size)} pacotes")
         print(f"Velocidade de transmissão: {round((size * 8) / delta, 2)} b/s")
+        print(f"Número de pacotes retransmitidos: {failed_packages}")
 
     def run(self, address: str, port: int):
         """

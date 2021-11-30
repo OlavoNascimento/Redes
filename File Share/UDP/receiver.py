@@ -152,11 +152,14 @@ class Receiver(Client):
         self.address = address
         # Porcentagem já enviada.
         progress = 0
+        # Pacotes que tiveram que ser reenviados.
+        failed_packages = 0
 
         while self.buffer_size < file_size:
             packet = self.receive_packet()
             # Verifica se houve erro na transmissão do pacote.
             if not self.check_package(packet):
+                failed_packages += 1
                 continue
 
             self.send_ack()
@@ -172,7 +175,7 @@ class Receiver(Client):
 
         end_time = datetime.datetime.now()
         print("Arquivo recebido")
-        self.report(file_size, start_time, end_time)
+        self.report(file_size, failed_packages, start_time, end_time)
         return True
 
     def prepare_socket(self, address: str, port: int):
