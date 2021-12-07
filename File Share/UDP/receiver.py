@@ -74,23 +74,24 @@ class Receiver(Client):
             packet_checksum,
         )
 
-        return packet_index, packet_data_size, packet_data, packet_checksum
+        return packet_index, packet_data_size, packet_checksum, packet_data
 
     def check_package(self, packet: bytes):
         """
         Verifica se não houve erro na transmissão do pacote.
         """
-        packet_index, packet_size, packet_data, packet_checksum = packet
+        packet_index, packet_size, packet_checksum, packet_data = packet
         if packet_data is None:
             self.send_nack()
             return False
 
-        # Caso o pacote atual esteja acima do pacote recebido, remove os dados recebidos
-        # após ele e reinicia o contador.
-        if self.current_package > packet_index:
+        # O pacote recebido esteja abaixo do pacote esperado, isso significa que as mensagens de
+        # ACK enviadas não foram recebidas pelo outro programa, portanto é necessário envia-las
+        # novamente.
+        if packet_index < self.current_package:
             diff = self.current_package - packet_index
             logging.debug(
-                "Recebido pacote maior que o esperado: esperado %s, encontrado: %s, reenviando %s ACKs",
+                "Recebido pacote menor que o esperado: esperado %s, encontrado: %s, reenviando %s ACKs",
                 self.current_package,
                 packet_index,
                 diff,
@@ -101,9 +102,11 @@ class Receiver(Client):
                 self.current_package += 1
             return False
 
-        if packet_index < self.current_package:
+        # O pacote recebido esteja acima do pacote esperado, isso significa que o pacote esperado
+        # falhou e portanto deve ser reenviado.
+        if packet_index > self.current_package:
             logging.debug(
-                "Recebido pacote menor do que o esperado: esperado %s, encontrado: %s",
+                "Recebido pacote maior do que o esperado: esperado %s, encontrado: %s",
                 self.current_package,
                 packet_index,
             )
@@ -160,11 +163,9 @@ class Receiver(Client):
             progress = self.print_progress_message(
                 self.buffer_size, file_size, progress, "Recebido"
             )
-            self.buffer.append(packet[2])
+            self.buffer.append(packet[3])
             self.buffer_size += packet[1]
             self.current_package += 1
-
-        self.connection.sendto(b"", address)
 
         with open(file_name, "wb") as output:
             output.write(b"".join(self.buffer))
