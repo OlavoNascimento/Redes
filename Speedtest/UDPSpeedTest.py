@@ -71,7 +71,7 @@ class UDPTester(Client):
                     waiting_message_presented = True
         logging.debug("Fim do recebimento de dados")
 
-        # Garante que o tempo de execução da barra de progresso esteja correto ao fina da
+        # Garante que o tempo de execução da barra de progresso esteja correto ao fim da
         # execução.
         pbar.n = self.RUN_DURATION
         pbar.refresh()
@@ -114,7 +114,7 @@ class UDPTester(Client):
                     pbar.update(1)
                     pbar.refresh()
 
-            # Garante que o tempo de execução da barra de progresso esteja correto ao fina da
+            # Garante que o tempo de execução da barra de progresso esteja correto ao fim da
             # execução.
             pbar.n = self.RUN_DURATION
             pbar.refresh()
