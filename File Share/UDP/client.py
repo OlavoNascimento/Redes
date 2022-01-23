@@ -1,18 +1,16 @@
-import abc
 import hashlib
 import select
 import socket
+from abc import ABCMeta, abstractmethod
 from datetime import datetime
 from math import ceil
 
 
-class Client:
+class Client(metaclass=ABCMeta):
     """
     Classe que lida com a conexão com um outro usuário e gerencia o envio e recebimento de
     mensagens.
     """
-
-    __metaclass__ = abc.ABCMeta
 
     def __init__(self, packet_size: int):
         # Tamanho de cada pacote enviado.
@@ -28,14 +26,14 @@ class Client:
         """
         self.connection.close()
 
-    @abc.abstractmethod
+    @abstractmethod
     def handle_connection(self):
         """
         Função que deve ser implementada para lidar com as conexões do cliente.
         """
         raise NotImplementedError("O método handle_connection deve ser implementado")
 
-    @abc.abstractmethod
+    @abstractmethod
     def prepare_socket(self, address: str, port: int):
         """
         Função que deve ser implementada para preparar o socket para ser utilizado pelo programa.

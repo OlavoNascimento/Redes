@@ -1,10 +1,11 @@
 import abc
 import select
 import socket
+from abc import ABCMeta, abstractmethod
 from math import ceil
 
 
-class Client:
+class Client(metaclass=ABCMeta):
     """
     Classe que lida com a conexão com um servidor e gerencia o envio e recebimento de mensagens.
     """
@@ -17,7 +18,7 @@ class Client:
         # Tamanho do pacote
         self.packet_size = packet_size
 
-    @abc.abstractmethod
+    @abstractmethod
     def handle_connection(self):
         """
         Função que deve ser implementada para lidar com as conexões do cliente.
@@ -100,4 +101,3 @@ class Client:
         if self.connection is not None:
             self.connection.close()
             self.connection = None
-
