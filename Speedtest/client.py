@@ -10,8 +10,8 @@ class SocketType(Enum):
     Tipos de sockets que um Client pode utilizar.
     """
 
-    TCP = auto()
-    UDP = auto()
+    TCP = socket.SOCK_STREAM
+    UDP = socket.SOCK_DGRAM
 
 
 class Roles(Enum):
@@ -46,15 +46,11 @@ class Client(metaclass=ABCMeta):
         starting_role: Roles,
         socket_type: SocketType,
     ):
-        connection_type = {
-            SocketType.TCP: socket.SOCK_STREAM,
-            SocketType.UDP: socket.SOCK_DGRAM,
-        }
-        self.connection = socket.socket(socket.AF_INET, connection_type[socket_type])
+        self.connection = socket.socket(socket.AF_INET, socket_type.value)
         address = socket.gethostbyname(socket.gethostname())
-        # Socket para esperar a conexão do outro usuário.
+        # Endereço para esperar a conexão do outro usuário.
         self.listen_address = (address, port)
-        # Socket para se conectar ao outro usuário.
+        # Endereço para se conectar ao outro usuário.
         self.connect_address = (connect_address, port)
         # Tipo de socket.
         self.socket_type = socket_type
@@ -110,7 +106,7 @@ class Client(metaclass=ABCMeta):
         elif self.role == Roles.SENDER:
             self.role = Roles.RECEIVER
         self.connection.close()
-        self.connection = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.connection = socket.socket(socket.AF_INET, self.socket_type.value)
 
     def get_connection_speed(self, bytes_transmitted: int) -> int:
         """
