@@ -9,6 +9,7 @@ import sys
 
 from client import Roles
 from UDPSpeedTest import UDPTester
+from TCPSpeedTest import TCPTester
 
 
 def main():
@@ -34,6 +35,8 @@ def main():
         print("Opção inválida!")
         sys.exit(1)
 
+    tcp_tester = TCPTester(connect_address, port, starting_role)
+    tcp_tester.run()
     udp_tester = UDPTester(connect_address, port, starting_role)
     udp_tester.run()
 
