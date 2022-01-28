@@ -3,6 +3,7 @@ import logging
 from abc import ABCMeta, abstractmethod
 from enum import Enum, auto
 from random import randbytes
+from time import sleep
 
 
 class SocketType(Enum):
@@ -72,10 +73,24 @@ class Client(metaclass=ABCMeta):
         logging.debug("Executando função %s", self.role.name)
         data_transmitted = 0
         if self.role == Roles.RECEIVER:
-            self.connection.connect(self.connect_address)
+            while True:
+                try:
+                    self.connection.connect(self.connect_address)
+                    break
+                except:
+                    logging.debug("Trying to connect ", self.connect_address)
+                    sleep(1)
+                    pass
             data_transmitted = self.receive_data()
         elif self.role == Roles.SENDER:
-            self.connection.bind(self.listen_address)
+            while True:
+                try:
+                    self.connection.bind(self.listen_address)
+                    break;
+                except:
+                    logging.debug("Trying to bind ", self.listen_address)
+                    sleep(1)
+                    pass
             data_transmitted = self.send_data()
         return data_transmitted
 
