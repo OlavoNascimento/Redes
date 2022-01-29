@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timedelta
+from operator import truediv
 from time import sleep
 
 from tqdm import tqdm
@@ -38,10 +39,11 @@ class TCPTester(Client):
         pbar = None
         received_data_size = 0
 
-        end_time = datetime.now() + timedelta(seconds=self.RUN_DURATION + 2) 
         next_tick = datetime.now() + timedelta(seconds=1)
-        while (current_time := datetime.now()) < end_time:
+        while True:
             data = self.connection.recv(self.PACKET_SIZE)
+            if data == self.EMPTY_PACKET:
+                break
             logging.debug(
                 "%d bytes recebidos, tamanho atual: %d", len(data), received_data_size
             )
@@ -100,6 +102,7 @@ class TCPTester(Client):
             # execução.
             pbar.n = self.RUN_DURATION
             pbar.refresh()
+        self.connection.sendto(self.EMPTY_PACKET, address)
         logging.debug("Fim do envio de dados")
 
         # Recebe o total de bytes recebidos pelo o outro usuário.
