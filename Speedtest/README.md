@@ -8,4 +8,5 @@ Programa que calcula as velocidades de download e upload entre dois computadores
 Execute:
 
 1) `$ poetry install`
-2) `$ poetry run ./speedtest.py`
+2) `$ poetry shell`
+2) `$ ./speedtest.py`

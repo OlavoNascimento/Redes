@@ -8,8 +8,8 @@ import logging
 import sys
 
 from client import Roles
-from UDPSpeedTest import UDPTester
-from TCPSpeedTest import TCPTester
+from udp_speedtest import UDPTester
+from tcp_speedtest import TCPTester
 
 
 def main():
