@@ -7,9 +7,9 @@ Programa que calcula as velocidades de download e upload entre dois computadores
 import logging
 import sys
 
-from client import Roles
-from udp_speedtest import UDPTester
-from tcp_speedtest import TCPTester
+from generic_speedtest import Roles
+from udp_speedtest import UDPSpeedTest
+from tcp_speedtest import TCPSpeedTest
 
 
 def main():
@@ -19,6 +19,7 @@ def main():
     # Habilita mensagens de debug
     # logging.basicConfig(level=logging.DEBUG, format=FORMAT)
 
+    listen_address = input("Seu endereço: ")
     connect_address = input("Endereço do outro usuário: ")
     port = int(input("Porta: "))
     client_type = input("Enviar(E) ou receber(R)?: ")
@@ -35,9 +36,9 @@ def main():
         print("Opção inválida!")
         sys.exit(1)
 
-    tcp_tester = TCPTester(connect_address, port, starting_role)
+    tcp_tester = TCPSpeedTest(listen_address, connect_address, port, starting_role)
     tcp_tester.run()
-    udp_tester = UDPTester(connect_address, port, starting_role)
+    udp_tester = UDPSpeedTest(listen_address, connect_address, port, starting_role)
     udp_tester.run()
 
 

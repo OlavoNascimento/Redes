@@ -9,7 +9,7 @@ from typing import Tuple, Dict
 
 class SocketType(Enum):
     """
-    Tipos de sockets que um Client pode utilizar.
+    Tipos de sockets que um SpeedTest pode utilizar.
     """
 
     TCP = socket.SOCK_STREAM
@@ -18,14 +18,14 @@ class SocketType(Enum):
 
 class Roles(Enum):
     """
-    Funções que podem ser executadas por um Client.
+    Funções que podem ser executadas por um SpeedTest.
     """
 
     SENDER = "upload"
     RECEIVER = "download"
 
 
-class Client(metaclass=ABCMeta):
+class SpeedTest(metaclass=ABCMeta):
     """
     Gerência a conexão entre dois computadores, alternando entre as funções de SENDER e RECEIVER.
     Apresenta um relatório com as velocidades de download e upload através do método report().
@@ -47,15 +47,15 @@ class Client(metaclass=ABCMeta):
 
     def __init__(
         self,
+        listen_address: str,
         connect_address: str,
         port: int,
         starting_role: Roles,
         socket_type: SocketType,
     ):
         self.connection = socket.socket(socket.AF_INET, socket_type.value)
-        address = socket.gethostbyname(socket.gethostname())
         # Endereço para esperar a conexão do outro usuário.
-        self.listen_address = (address, port)
+        self.listen_address = (listen_address, port)
         # Endereço para se conectar ao outro usuário.
         self.connect_address = (connect_address, port)
         # Tipo de socket.

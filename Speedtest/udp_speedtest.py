@@ -5,10 +5,10 @@ from typing import Tuple
 
 from tqdm import tqdm
 
-from client import Client, Roles, SocketType
+from generic_speedtest import SpeedTest, Roles, SocketType
 
 
-class UDPTester(Client):
+class UDPSpeedTest(SpeedTest):
     """
     Classe responsável por transmitir dados utilizando sockets UDP e calcular as velocidades de
     download e upload entre dois computadores.
@@ -19,11 +19,13 @@ class UDPTester(Client):
 
     def __init__(
         self,
+        listen_address: str,
         connect_address: str,
         port: int,
         starting_role: Roles,
     ):
         super().__init__(
+            listen_address,
             connect_address,
             port,
             starting_role,
