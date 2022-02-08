@@ -167,7 +167,7 @@ class SpeedTest(metaclass=ABCMeta):
         Transforma um número de bytes para uma representação textual.
         """
         index = 0
-        values = {0: "B", 1: "KB", 2: "MB", 3: "GB", 4: "TB"}
+        values = {0: "b", 1: "Kb", 2: "Mb", 3: "Gb", 4: "Tb"}
         while size > 1024 and index < 4:
             size /= 1024
             index += 1
@@ -189,8 +189,8 @@ class SpeedTest(metaclass=ABCMeta):
         Apresenta um relatório sobre uma função executada pelo cliente.
         """
         packets_per_second = int(transmitted_bytes / (self.RUN_DURATION * self.PACKET_SIZE))
-        transmitted_formated_per_second = self.format_bytes(transmitted_bytes / self.RUN_DURATION)
         transmitted_bits_per_second = (transmitted_bytes * 8) / self.RUN_DURATION
+        transmitted_bits_formated = self.format_bytes(transmitted_bits_per_second)
 
         print(f"{str(role.value).capitalize()}")
         print(f"Tamanho do header: {self.INT_BYTE_SIZE} bytes")
@@ -200,11 +200,7 @@ class SpeedTest(metaclass=ABCMeta):
         print(f"Taxa de transmissão de pacotes: {packets_per_second}p/s")
         print(f"Pacotes perdidos: {lost_packets}")
         print(f"Taxa de perda de pacotes: {round((lost_packets / transmitted_bytes ) * 100, 2)}%")
-        print(
-            f"Velocidade de {role.value}:"
-            f" {transmitted_formated_per_second}/s"
-            f" ({transmitted_bits_per_second}b/s)"
-        )
+        print(f"Velocidade de {role.value}: {transmitted_bits_formated}/s")
 
     @abstractmethod
     def receive_data(self) -> Tuple[int]:
