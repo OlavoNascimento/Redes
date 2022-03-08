@@ -196,9 +196,9 @@ class SpeedTest(metaclass=ABCMeta):
         print(f"Tamanho do header: {self.INT_BYTE_SIZE} bytes")
         print(f"Tamanho do payload: {self.DATA_SIZE} bytes")
         print(f"Tempo de execução do teste: {self.RUN_DURATION}s")
-        print(f"Total de bytes transmitidos: {transmitted_bytes}")
-        print(f"Taxa de transmissão de pacotes: {packets_per_second}p/s")
-        print(f"Pacotes perdidos: {lost_packets}")
+        print(f"Total de bytes transmitidos: {transmitted_bytes:,}")
+        print(f"Taxa de transmissão de pacotes: {packets_per_second:,}p/s")
+        print(f"Pacotes perdidos: {lost_packets:,}")
         print(f"Taxa de perda de pacotes: {round((lost_packets / transmitted_bytes ) * 100, 2)}%")
         print(f"Velocidade de {role.value}: {transmitted_bits_formated}/s")
 

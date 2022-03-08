@@ -13,6 +13,9 @@ from tcp_speedtest import TCPSpeedTest
 
 
 def main():
+    """
+    Lê os argumentos fornecidos pelo usuário, cria e executa as funções de envio e recebimento.
+    """
     FORMAT = (
         "%(levelname)s - [%(filename)s:%(lineno)s - %(funcName)s()] - %(asctime)s - %(message)s"
     )
