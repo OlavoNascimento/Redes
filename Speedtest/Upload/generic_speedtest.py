@@ -1,10 +1,12 @@
 import socket
 import logging
+from collections import namedtuple
 from abc import ABCMeta, abstractmethod
 from enum import Enum
 from random import randbytes
 from time import sleep
-from typing import Tuple, Dict
+
+Results = namedtuple("Results", "transmitted_bytes lost_packets")
 
 
 class SocketType(Enum):
@@ -71,7 +73,7 @@ class SpeedTest(metaclass=ABCMeta):
         """
         self.connection.close()
 
-    def execute_role(self) -> Tuple[int, int]:
+    def execute_role(self) -> Results:
         """
         Prepara o socket e executa a função atual do cliente.
         """
@@ -109,7 +111,7 @@ class SpeedTest(metaclass=ABCMeta):
         """
         return position.to_bytes(self.INT_BYTE_SIZE, "big", signed=False) + self.data
 
-    def decode_data_packet(self, packet: bytes) -> Tuple[int, bytes]:
+    def decode_data_packet(self, packet: bytes) -> Results:
         """
         Decodifica um pacote para ser enviado ao outro usuário, contendo o número do pacote e dados.
         """
@@ -126,7 +128,7 @@ class SpeedTest(metaclass=ABCMeta):
         packets_lost = packets_lost.to_bytes(self.INT_BYTE_SIZE, "big", signed=False)
         return bytes_transmitted + packets_lost
 
-    def decode_stats_packet(self, stats_packet: bytes) -> Tuple[int, bytes]:
+    def decode_stats_packet(self, stats_packet: bytes) -> Results:
         """
         Decodifica um pacote de estatísticas, contendo bytes transmitidos e o número de pacotes
         perdidos.
@@ -173,7 +175,7 @@ class SpeedTest(metaclass=ABCMeta):
             index += 1
         return f"{round(size, 2)} {values[index]}"
 
-    def report(self, report_data: Dict[Roles, Tuple[int, int]]) -> None:
+    def report(self, report_data: Dict[Roles, Results]) -> None:
         """
         Apresenta um relatório sobre as velocidades de download e upload entre duas máquinas.
         """
@@ -204,7 +206,15 @@ class SpeedTest(metaclass=ABCMeta):
         print(f"Velocidade de {role.value}: {transmitted_bits_formated}/s")
 
     @abstractmethod
-    def send_data(self) -> Tuple[int]:
+    def receive_data(self) -> Results:
+        """
+        Recebe dados enviados por outro usuário, armazenando o número de bytes recebidos, ao final
+        da transmissão envia o total recebido para o outro usuário.
+        """
+        raise NotImplementedError("O método receive_data() deve ser implementado")
+
+    @abstractmethod
+    def send_data(self) -> Results:
         """
         Envia dados para outro usuário, ao final da transmissão recebe o total de bytes recebidos
         pelo o outro usuário.

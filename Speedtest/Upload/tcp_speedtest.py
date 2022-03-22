@@ -1,10 +1,9 @@
 import logging
 from datetime import datetime, timedelta
-from typing import Tuple
 
 from tqdm import tqdm
 
-from generic_speedtest import SpeedTest, Roles, SocketType
+from generic_speedtest import Results, SpeedTest, Roles, SocketType
 
 
 class TCPSpeedTest(SpeedTest):
@@ -28,7 +27,7 @@ class TCPSpeedTest(SpeedTest):
             SocketType.TCP,
         )
 
-    def receive_data(self) -> Tuple[int]:
+    def receive_data(self) -> Results:
         """
         Recebe dados enviados por outro usuário, armazenando o número de bytes recebidos, ao final
         da transmissão envia o total recebido para o outro usuário.
@@ -90,9 +89,9 @@ class TCPSpeedTest(SpeedTest):
         stats_packet = self.encode_stats_packet(received_data_size, packets_lost)
         self.connection.sendall(stats_packet)
 
-        return received_data_size, packets_lost
+        return Results(received_data_size, packets_lost)
 
-    def send_data(self) -> Tuple[int]:
+    def send_data(self) -> Results:
         """
         Envia dados para outro usuário, ao final da transmissão recebe o total de bytes recebidos
         pelo o outro usuário.
@@ -134,4 +133,4 @@ class TCPSpeedTest(SpeedTest):
         bytes_transmitted, packets_lost = self.decode_stats_packet(stats_packet)
 
         logging.debug("%d bytes foram recebidos pelo o outro usuário", bytes_transmitted)
-        return bytes_transmitted, packets_lost
+        return Results(bytes_transmitted, packets_lost)
