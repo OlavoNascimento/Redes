@@ -4,6 +4,7 @@
 Programa que calcula as velocidades de download e upload entre dois computadores.
 """
 
+from collections import namedtuple
 import logging
 import sys
 
@@ -16,9 +17,7 @@ def main():
     """
     Lê os argumentos fornecidos pelo usuário, cria e executa as funções de envio e recebimento.
     """
-    FORMAT = (
-        "%(levelname)s - [%(filename)s:%(lineno)s - %(funcName)s()] - %(asctime)s - %(message)s"
-    )
+    FORMAT = "%(levelname)s - [%(filename)s:%(lineno)s - %(funcName)s()] - %(asctime)s - %(message)s"
     # Habilita mensagens de debug
     # logging.basicConfig(level=logging.DEBUG, format=FORMAT)
 

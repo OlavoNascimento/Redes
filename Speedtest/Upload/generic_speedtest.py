@@ -1,7 +1,7 @@
-import socket
 import logging
-from collections import namedtuple
+import socket
 from abc import ABCMeta, abstractmethod
+from collections import namedtuple
 from enum import Enum
 from random import randbytes
 from time import sleep
@@ -27,6 +27,9 @@ class Roles(Enum):
     RECEIVER = "download"
 
 
+Results = namedtuple("Results", "bytes_transmitted packets_lost")
+
+
 class SpeedTest(metaclass=ABCMeta):
     """
     Gerência a conexão entre dois computadores, alternando entre as funções de SENDER e RECEIVER.
@@ -37,7 +40,7 @@ class SpeedTest(metaclass=ABCMeta):
     # Tamanho da representação de um inteiro como bytes.
     INT_BYTE_SIZE = 8
     # Tamanho dos dados presentes em um pacote.
-    DATA_SIZE = 1024
+    DATA_SIZE = 500
     # Tamanho de cada pacote enviado entre usuários.
     PACKET_SIZE = INT_BYTE_SIZE + DATA_SIZE
     # Duração dos testes.
@@ -52,7 +55,7 @@ class SpeedTest(metaclass=ABCMeta):
         listen_address: str,
         connect_address: str,
         port: int,
-        starting_role: Roles,
+        role: Roles,
         socket_type: SocketType,
     ):
         self.connection = socket.socket(socket.AF_INET, socket_type.value)
@@ -63,7 +66,7 @@ class SpeedTest(metaclass=ABCMeta):
         # Tipo de socket.
         self.socket_type = socket_type
         # Função atual do cliente.
-        self.role = starting_role
+        self.role = role
         # Dados enviados entre os usuários.
         self.data = randbytes(self.DATA_SIZE)
 
@@ -78,7 +81,7 @@ class SpeedTest(metaclass=ABCMeta):
         Prepara o socket e executa a função atual do cliente.
         """
         logging.debug("Executando função %s", self.role.name)
-        data_transmitted = (0, 0)
+        data_transmitted = Results(0, 0)
         if self.role == Roles.RECEIVER:
             sleep(2)
             self.connection.connect(self.connect_address)
@@ -96,14 +99,8 @@ class SpeedTest(metaclass=ABCMeta):
         """
         print(f"Iniciando teste de conexão com socket {self.socket_type.name}...")
         # Salva os dados retornados ao executar a função atual do cliente.
-        report_data = {
-            Roles.RECEIVER: (0, 0),
-            Roles.SENDER: (0, 0),
-        }
-        report_data[self.role] = self.execute_role()
-        self.swap_roles()
-        report_data[self.role] = self.execute_role()
-        self.report(report_data)
+        result = self.execute_role()
+        self.report(result)
 
     def encode_data_packet(self, position: int) -> bytes:
         """
@@ -164,7 +161,7 @@ class SpeedTest(metaclass=ABCMeta):
         return message
 
     @staticmethod
-    def format_bytes(size) -> int:
+    def format_bytes(size) -> str:
         """
         Transforma um número de bytes para uma representação textual.
         """
@@ -175,27 +172,18 @@ class SpeedTest(metaclass=ABCMeta):
             index += 1
         return f"{round(size, 2)} {values[index]}"
 
-    def report(self, report_data: Dict[Roles, Results]) -> None:
-        """
-        Apresenta um relatório sobre as velocidades de download e upload entre duas máquinas.
-        """
-        print("-----------------------------------------------------------------\n")
-        print(f"Resultados para o teste utilizando socket {self.socket_type.name}")
-        for role, (transmitted, lost) in report_data.items():
-            self.report_role(role, transmitted, lost)
-            print()
-        print("-----------------------------------------------------------------\n")
-
-    def report_role(self, role: Roles, transmitted_bytes: int, lost_packets: int) -> None:
+    def report(self, report_data: Results) -> None:
         """
         Apresenta um relatório sobre uma função executada pelo cliente.
         """
+        (transmitted_bytes, lost_packets) = report_data
         packets_per_second = int(transmitted_bytes / (self.RUN_DURATION * self.PACKET_SIZE))
-        transmitted_bits_per_second = (transmitted_bytes * 8) / self.RUN_DURATION
-        transmitted_bits_formated = self.format_bytes(transmitted_bits_per_second)
 
-        # TODO Verificar se é igual na nova versão
-        print(f"{str(role.value).capitalize()}")
+        print("-----------------------------------------------------------------\n")
+        print(f"Resultados para o teste utilizando socket {self.socket_type.name}")
+        print(f"Total de bytes transmitidos: {transmitted_bytes:,}")
+        print(f"Taxa de transmissão de pacotes: {packets_per_second:,}p/s")
+        print(f"Pacotes perdidos: {lost_packets:,}")
         print(f"Tamanho do header: {self.INT_BYTE_SIZE} bytes")
         print(f"Tamanho do payload: {self.DATA_SIZE} bytes")
         print(f"Tempo de execução do teste: {self.RUN_DURATION}s")
@@ -203,7 +191,6 @@ class SpeedTest(metaclass=ABCMeta):
         print(f"Taxa de transmissão de pacotes: {packets_per_second:,}p/s")
         print(f"Pacotes perdidos: {lost_packets:,}")
         print(f"Taxa de perda de pacotes: {round((lost_packets / transmitted_bytes ) * 100, 2)}%")
-        print(f"Velocidade de {role.value}: {transmitted_bits_formated}/s")
 
     @abstractmethod
     def receive_data(self) -> Results:
