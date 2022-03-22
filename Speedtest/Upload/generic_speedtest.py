@@ -3,7 +3,7 @@ import socket
 from abc import ABCMeta, abstractmethod
 from collections import namedtuple
 from enum import Enum
-from random import randbytes
+from math import ceil
 from time import sleep
 
 Results = namedtuple("Results", "transmitted_bytes lost_packets")
@@ -68,7 +68,10 @@ class SpeedTest(metaclass=ABCMeta):
         # Função atual do cliente.
         self.role = role
         # Dados enviados entre os usuários.
-        self.data = randbytes(self.DATA_SIZE)
+        byte_string = "teste de rede 2022".encode("ascii")
+        # Preenche os dados com 500 bytes.
+        self.data = byte_string * ceil((500 / len(byte_string)))
+        self.data = self.data[0:500]
 
     def __del__(self):
         """
