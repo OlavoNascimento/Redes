@@ -181,19 +181,16 @@ class SpeedTest(metaclass=ABCMeta):
         """
         (transmitted_bytes, lost_packets) = report_data
         packets_per_second = int(transmitted_bytes / (self.RUN_DURATION * self.PACKET_SIZE))
+        transmitted_bits_per_second = (transmitted_bytes * 8) / self.RUN_DURATION
+        transmitted_bits_formated = self.format_bytes(transmitted_bits_per_second)
+        lost_packets_percent = round((lost_packets / transmitted_bytes) * 100, 2)
 
         print("-----------------------------------------------------------------\n")
         print(f"Resultados para o teste utilizando socket {self.socket_type.name}")
         print(f"Total de bytes transmitidos: {transmitted_bytes:,}")
+        print(f"Velocidade de {self.role.value}: {transmitted_bits_formated}/s")
         print(f"Taxa de transmissão de pacotes: {packets_per_second:,}p/s")
-        print(f"Pacotes perdidos: {lost_packets:,}")
-        print(f"Tamanho do header: {self.INT_BYTE_SIZE} bytes")
-        print(f"Tamanho do payload: {self.DATA_SIZE} bytes")
-        print(f"Tempo de execução do teste: {self.RUN_DURATION}s")
-        print(f"Total de bytes transmitidos: {transmitted_bytes:,}")
-        print(f"Taxa de transmissão de pacotes: {packets_per_second:,}p/s")
-        print(f"Pacotes perdidos: {lost_packets:,}")
-        print(f"Taxa de perda de pacotes: {round((lost_packets / transmitted_bytes ) * 100, 2)}%")
+        print(f"Pacotes perdidos: {lost_packets:,} {lost_packets_percent:,}%")
 
     @abstractmethod
     def receive_data(self) -> Results:
