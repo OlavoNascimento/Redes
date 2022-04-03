@@ -27,9 +27,6 @@ class Roles(Enum):
     RECEIVER = "download"
 
 
-Results = namedtuple("Results", "bytes_transmitted packets_lost packet_counter")
-
-
 class SpeedTest(metaclass=ABCMeta):
     """
     Gerência a conexão entre dois computadores, alternando entre as funções de SENDER e RECEIVER.
@@ -185,21 +182,21 @@ class SpeedTest(metaclass=ABCMeta):
         transmitted_bits_formated = self.format_bytes(transmitted_bits_per_second)
         lost_packets_percent = round((lost_packets / transmitted_bytes) * 100, 2)
 
-        if self.role == Roles.SENDER:
-            print("-----------------------------------------------------------------\n")
-            print(f"Resultados para o teste utilizando socket {self.socket_type.name}")
-            print(f"Total de bytes transmitidos: {transmitted_bytes:,}")
-            print(f"Velocidade de {self.role.value}: {transmitted_bits_formated}/s")
-            print(f"Taxa de transmissão de pacotes: {packets_per_second:,}p/s")
-            print(f"Pacotes enviados: {packet_counter:,}")
-            print(f"Pacotes perdidos: {lost_packets:,} {lost_packets_percent:,}%")
-        else:
-            print("-----------------------------------------------------------------\n")
-            print(f"Resultados para o teste utilizando socket {self.socket_type.name}")
-            print(f"Total de bytes recebidos: {transmitted_bytes:,}")
-            print(f"Velocidade de {self.role.value}: {transmitted_bits_formated}/s")
-            print(f"Pacotes recebidos: {packet_counter:,}")
-            print(f"Pacotes perdidos: {lost_packets:,} {lost_packets_percent:,}%")
+        role_texts = {
+            Roles.SENDER: ("transmitidos", "transmissão", "enviados"),
+            Roles.RECEIVER: ("recebidos", "recebimento", "recebidos"),
+        }
+        role_text = role_texts[self.role]
+        print("\n-----------------------------------------------------------------")
+        print(f"Resultados para o teste utilizando socket {self.socket_type.name}")
+        print(f"Total de bytes {role_text[0]}: {transmitted_bytes:,}")
+        print(
+            f"Velocidade de {self.role.value}: {transmitted_bits_formated}/s ({transmitted_bits_per_second:,}b/s)"
+        )
+        print(f"Taxa de {role_text[1]} de pacotes: {packets_per_second:,}p/s")
+        print(f"Pacotes {role_text[2]}: {packet_counter:,}")
+        print(f"Pacotes perdidos: {lost_packets:,} ({lost_packets_percent:,})%")
+        print("-----------------------------------------------------------------\n")
 
     @abstractmethod
     def receive_data(self) -> Results:

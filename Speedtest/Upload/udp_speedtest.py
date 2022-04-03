@@ -1,4 +1,3 @@
-from ctypes import sizeof
 import logging
 from datetime import datetime, timedelta
 from socket import timeout
@@ -16,7 +15,6 @@ class UDPSpeedTest(SpeedTest):
 
     # Pacote utilizado para confirmar que o outro usuário recebeu um pacote.
     CONFIRMATION_PACKET = b"\x01"
-    CONFIRMATION_PACKET.__sizeof__
 
     def __init__(
         self,
