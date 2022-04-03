@@ -6,7 +6,7 @@ from enum import Enum
 from math import ceil
 from time import sleep
 
-Results = namedtuple("Results", "transmitted_bytes lost_packets")
+Results = namedtuple("Results", "transmitted_bytes lost_packets packet_counter")
 
 
 class SocketType(Enum):
@@ -27,7 +27,7 @@ class Roles(Enum):
     RECEIVER = "download"
 
 
-Results = namedtuple("Results", "bytes_transmitted packets_lost")
+Results = namedtuple("Results", "bytes_transmitted packets_lost packet_counter")
 
 
 class SpeedTest(metaclass=ABCMeta):
@@ -84,7 +84,7 @@ class SpeedTest(metaclass=ABCMeta):
         Prepara o socket e executa a função atual do cliente.
         """
         logging.debug("Executando função %s", self.role.name)
-        data_transmitted = Results(0, 0)
+        data_transmitted = Results(0, 0, 0)
         if self.role == Roles.RECEIVER:
             sleep(2)
             self.connection.connect(self.connect_address)
@@ -179,18 +179,27 @@ class SpeedTest(metaclass=ABCMeta):
         """
         Apresenta um relatório sobre uma função executada pelo cliente.
         """
-        (transmitted_bytes, lost_packets) = report_data
+        (transmitted_bytes, lost_packets, packet_counter) = report_data
         packets_per_second = int(transmitted_bytes / (self.RUN_DURATION * self.PACKET_SIZE))
         transmitted_bits_per_second = (transmitted_bytes * 8) / self.RUN_DURATION
         transmitted_bits_formated = self.format_bytes(transmitted_bits_per_second)
         lost_packets_percent = round((lost_packets / transmitted_bytes) * 100, 2)
 
-        print("-----------------------------------------------------------------\n")
-        print(f"Resultados para o teste utilizando socket {self.socket_type.name}")
-        print(f"Total de bytes transmitidos: {transmitted_bytes:,}")
-        print(f"Velocidade de {self.role.value}: {transmitted_bits_formated}/s")
-        print(f"Taxa de transmissão de pacotes: {packets_per_second:,}p/s")
-        print(f"Pacotes perdidos: {lost_packets:,} {lost_packets_percent:,}%")
+        if self.role == Roles.SENDER:
+            print("-----------------------------------------------------------------\n")
+            print(f"Resultados para o teste utilizando socket {self.socket_type.name}")
+            print(f"Total de bytes transmitidos: {transmitted_bytes:,}")
+            print(f"Velocidade de {self.role.value}: {transmitted_bits_formated}/s")
+            print(f"Taxa de transmissão de pacotes: {packets_per_second:,}p/s")
+            print(f"Pacotes enviados: {packet_counter:,}")
+            print(f"Pacotes perdidos: {lost_packets:,} {lost_packets_percent:,}%")
+        else:
+            print("-----------------------------------------------------------------\n")
+            print(f"Resultados para o teste utilizando socket {self.socket_type.name}")
+            print(f"Total de bytes recebidos: {transmitted_bytes:,}")
+            print(f"Velocidade de {self.role.value}: {transmitted_bits_formated}/s")
+            print(f"Pacotes recebidos: {packet_counter:,}")
+            print(f"Pacotes perdidos: {lost_packets:,} {lost_packets_percent:,}%")
 
     @abstractmethod
     def receive_data(self) -> Results:

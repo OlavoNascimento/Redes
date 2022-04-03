@@ -1,3 +1,4 @@
+from ctypes import sizeof
 import logging
 from datetime import datetime, timedelta
 from socket import timeout
@@ -15,6 +16,7 @@ class UDPSpeedTest(SpeedTest):
 
     # Pacote utilizado para confirmar que o outro usuário recebeu um pacote.
     CONFIRMATION_PACKET = b"\x01"
+    CONFIRMATION_PACKET.__sizeof__
 
     def __init__(
         self,
@@ -113,7 +115,7 @@ class UDPSpeedTest(SpeedTest):
             except ConnectionRefusedError:
                 break
 
-        return Results(received_data_size, packets_lost)
+        return Results(received_data_size, packets_lost, current_packet - packets_lost)
 
     def send_data(self) -> Results:
         """
@@ -128,6 +130,7 @@ class UDPSpeedTest(SpeedTest):
         end_time = datetime.now() + timedelta(seconds=self.RUN_DURATION)
         next_tick = datetime.now() + timedelta(seconds=1)
         current_packet = 0
+        byte_counter = 0
 
         logging.debug("Iniciando envio de dados")
         with tqdm(total=self.RUN_DURATION, bar_format=self.TQDM_FORMAT) as pbar:
@@ -136,6 +139,7 @@ class UDPSpeedTest(SpeedTest):
                 self.connection.sendto(packet, address)
                 logging.debug("Enviando pacote: %d", current_packet)
                 current_packet += 1
+                byte_counter += len(packet)
                 # Atualiza a barra de progresso.
                 if current_time >= next_tick:
                     next_tick = current_time + timedelta(seconds=1)
@@ -165,4 +169,4 @@ class UDPSpeedTest(SpeedTest):
         self.connection.settimeout(0)
         logging.debug("%d bytes foram recebidos pelo o outro usuário", bytes_transmitted)
 
-        return Results(bytes_transmitted, lost_packets)
+        return Results(byte_counter, lost_packets, current_packet)

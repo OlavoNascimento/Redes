@@ -89,7 +89,8 @@ class TCPSpeedTest(SpeedTest):
         stats_packet = self.encode_stats_packet(received_data_size, packets_lost)
         self.connection.sendall(stats_packet)
 
-        return Results(received_data_size, packets_lost)
+
+        return Results(received_data_size, packets_lost, current_packet)
 
     def send_data(self) -> Results:
         """
@@ -105,6 +106,7 @@ class TCPSpeedTest(SpeedTest):
         end_time = datetime.now() + timedelta(seconds=self.RUN_DURATION)
         next_tick = datetime.now() + timedelta(seconds=1)
         current_packet = 0
+        byte_counter = 0
 
         logging.debug("Iniciando envio de dados")
         with tqdm(total=self.RUN_DURATION, bar_format=self.TQDM_FORMAT) as pbar:
@@ -114,7 +116,7 @@ class TCPSpeedTest(SpeedTest):
 
                 client.sendall(packet)
                 current_packet += 1
-
+                byte_counter += len(packet)
                 # Atualiza a barra de progresso.
                 if current_time >= next_tick:
                     next_tick = current_time + timedelta(seconds=1)
@@ -133,4 +135,4 @@ class TCPSpeedTest(SpeedTest):
         bytes_transmitted, packets_lost = self.decode_stats_packet(stats_packet)
 
         logging.debug("%d bytes foram recebidos pelo o outro usuário", bytes_transmitted)
-        return Results(bytes_transmitted, packets_lost)
+        return Results(byte_counter, packets_lost, current_packet)
