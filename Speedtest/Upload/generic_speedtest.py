@@ -180,7 +180,7 @@ class SpeedTest(metaclass=ABCMeta):
         packets_per_second = int(transmitted_bytes / (self.RUN_DURATION * self.PACKET_SIZE))
         transmitted_bits_per_second = (transmitted_bytes * 8) / self.RUN_DURATION
         transmitted_bits_formated = self.format_bytes(transmitted_bits_per_second)
-        lost_packets_percent = round((lost_packets / transmitted_bytes) * 100, 2)
+        lost_packets_percent = round((lost_packets / packet_counter) * 100, 2)
 
         role_texts = {
             Roles.SENDER: ("transmitidos", "transmissão", "enviados"),
