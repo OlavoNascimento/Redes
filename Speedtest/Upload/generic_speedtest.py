@@ -5,8 +5,7 @@ from collections import namedtuple
 from enum import Enum
 from math import ceil
 from time import sleep
-
-Results = namedtuple("Results", "transmitted_bytes lost_packets packet_counter")
+from typing import Tuple
 
 
 class SocketType(Enum):
@@ -27,6 +26,55 @@ class Roles(Enum):
     RECEIVER = "download"
 
 
+class Results:
+    def __init__(self, transmitted_bytes: int, received_bytes: int) -> None:
+        self.transmitted_bytes = transmitted_bytes
+        self.received_bytes = received_bytes
+
+    @staticmethod
+    def format_bytes(size) -> str:
+        """
+        Transforma um número de bytes para uma representação textual.
+        """
+        index = 0
+        values = {0: "b", 1: "Kb", 2: "Mb", 3: "Gb", 4: "Tb"}
+        while size > 1024 and index < 4:
+            size /= 1024
+            index += 1
+        return f"{round(size, 2)} {values[index]}"
+
+    def report(
+        self, packet_size: int, run_duration: int, socket_type: SocketType, role: Roles
+    ) -> None:
+        """
+        Apresenta um relatório sobre uma função executada pelo cliente.
+        """
+        lost_bytes = self.transmitted_bytes - self.received_bytes
+        lost_packets = lost_bytes / packet_size
+        transmitted_packets = self.transmitted_bytes / packet_size
+
+        packets_per_second = int(self.transmitted_bytes / (run_duration * packet_size))
+        transmitted_bits_per_second = (self.transmitted_bytes * 8) / run_duration
+        transmitted_bits_formated = self.format_bytes(transmitted_bits_per_second)
+        lost_packets_percent = round((lost_packets / transmitted_packets) * 100, 2)
+
+        role_texts = {
+            Roles.SENDER: ("transmitidos", "transmissão", "enviados", self.transmitted_bytes),
+            Roles.RECEIVER: ("recebidos", "recebimento", "recebidos", self.received_bytes),
+        }
+        role_text = role_texts[role]
+        print("\n-----------------------------------------------------------------")
+        print(f"Resultados para o teste utilizando socket {socket_type.name}")
+        print(f"Total de bytes {role_text[0]}: {role_text[3]:,}")
+        print(
+            f"Velocidade de {role.value}: {transmitted_bits_formated}/s ({transmitted_bits_per_second:,}b/s)"
+        )
+        print(f"Taxa de {role_text[1]} de pacotes: {packets_per_second:,}p/s")
+        print(f"Pacotes {role_text[2]}: {transmitted_packets:,}")
+        print(f"Pacotes perdidos: {lost_packets:,} ({lost_packets_percent:,})%")
+        print("-----------------------------------------------------------------\n")
+
+
 class SpeedTest(metaclass=ABCMeta):
     """
     Gerência a conexão entre dois computadores, alternando entre as funções de SENDER e RECEIVER.
@@ -34,18 +82,18 @@ class SpeedTest(metaclass=ABCMeta):
     Os métodos receive_data() e send_data() devem ser implementados de acordo com o tipo de socket.
     """
 
+    # Duração dos testes.
+    RUN_DURATION = 20
+    # Formato da barra de progresso.
+    TQDM_FORMAT = "{n}s {bar}"
     # Tamanho da representação de um inteiro como bytes.
     INT_BYTE_SIZE = 8
     # Tamanho dos dados presentes em um pacote.
     DATA_SIZE = 500
     # Tamanho de cada pacote enviado entre usuários.
-    PACKET_SIZE = INT_BYTE_SIZE + DATA_SIZE
-    # Duração dos testes.
-    RUN_DURATION = 20
+    PACKET_SIZE = DATA_SIZE
     # Pacote indicando o fim da transmissão de dados.
     EMPTY_PACKET = b"\x00" * PACKET_SIZE
-    # Formato da barra de progresso.
-    TQDM_FORMAT = "{n}s {bar}"
 
     def __init__(
         self,
@@ -67,8 +115,7 @@ class SpeedTest(metaclass=ABCMeta):
         # Dados enviados entre os usuários.
         byte_string = "teste de rede 2022".encode("ascii")
         # Preenche os dados com 500 bytes.
-        self.data = byte_string * ceil((500 / len(byte_string)))
-        self.data = self.data[0:500]
+        self.data = (byte_string * ceil((500 / len(byte_string))))[0:500]
 
     def __del__(self):
         """
@@ -81,16 +128,15 @@ class SpeedTest(metaclass=ABCMeta):
         Prepara o socket e executa a função atual do cliente.
         """
         logging.debug("Executando função %s", self.role.name)
-        data_transmitted = Results(0, 0, 0)
         if self.role == Roles.RECEIVER:
-            sleep(2)
             self.connection.connect(self.connect_address)
-            data_transmitted = self.receive_data()
-        elif self.role == Roles.SENDER:
-            sleep(1)
+            results = self.receive_data()
+            return results
+        if self.role == Roles.SENDER:
             self.connection.bind(self.listen_address)
-            data_transmitted = self.send_data()
-        return data_transmitted
+            results = self.send_data()
+            return results
+        return None
 
     def run(self) -> None:
         """
@@ -100,54 +146,7 @@ class SpeedTest(metaclass=ABCMeta):
         print(f"Iniciando teste de conexão com socket {self.socket_type.name}...")
         # Salva os dados retornados ao executar a função atual do cliente.
         result = self.execute_role()
-        self.report(result)
-
-    def encode_data_packet(self, position: int) -> bytes:
-        """
-        Cria um pacote para ser enviado ao outro usuário, contendo o número do pacote e dados.
-        """
-        return position.to_bytes(self.INT_BYTE_SIZE, "big", signed=False) + self.data
-
-    def decode_data_packet(self, packet: bytes) -> Results:
-        """
-        Decodifica um pacote para ser enviado ao outro usuário, contendo o número do pacote e dados.
-        """
-        position = int.from_bytes(packet[0 : self.INT_BYTE_SIZE], "big", signed=False)
-        data = packet[self.INT_BYTE_SIZE :]
-        return position, data
-
-    def encode_stats_packet(self, received_data_size: int, packets_lost: int) -> bytes:
-        """
-        Cria um pacote de estatísticas, contendo bytes transmitidos e o número de pacotes
-        perdidos.
-        """
-        bytes_transmitted = received_data_size.to_bytes(self.INT_BYTE_SIZE, "big", signed=False)
-        packets_lost = packets_lost.to_bytes(self.INT_BYTE_SIZE, "big", signed=False)
-        return bytes_transmitted + packets_lost
-
-    def decode_stats_packet(self, stats_packet: bytes) -> Results:
-        """
-        Decodifica um pacote de estatísticas, contendo bytes transmitidos e o número de pacotes
-        perdidos.
-        """
-        bytes_transmitted = int.from_bytes(
-            stats_packet[0 : self.INT_BYTE_SIZE], "big", signed=False
-        )
-        packets_lost = int.from_bytes(stats_packet[self.INT_BYTE_SIZE :], "big", signed=False)
-        return bytes_transmitted, packets_lost
-
-    def swap_roles(self) -> None:
-        """
-        Troca a função atual do cliente pela função oposta, para isso é necessário criar um novo
-        socket.
-        """
-        logging.debug("Alterando função")
-        if self.role == Roles.RECEIVER:
-            self.role = Roles.SENDER
-        elif self.role == Roles.SENDER:
-            self.role = Roles.RECEIVER
-        self.connection.close()
-        self.connection = socket.socket(socket.AF_INET, self.socket_type.value)
+        result.report(self.PACKET_SIZE, self.RUN_DURATION, self.socket_type, self.role)
 
     @staticmethod
     def recvall(sock, size):
@@ -160,43 +159,25 @@ class SpeedTest(metaclass=ABCMeta):
             message += buffer
         return message
 
-    @staticmethod
-    def format_bytes(size) -> str:
+    def encode_data_packet(self) -> bytes:
         """
-        Transforma um número de bytes para uma representação textual.
+        Cria um pacote para ser enviado ao outro usuário, contendo o número do pacote e dados.
         """
-        index = 0
-        values = {0: "b", 1: "Kb", 2: "Mb", 3: "Gb", 4: "Tb"}
-        while size > 1024 and index < 4:
-            size /= 1024
-            index += 1
-        return f"{round(size, 2)} {values[index]}"
+        return self.data
 
-    def report(self, report_data: Results) -> None:
+    def encode_stats_packet(self, value: int) -> bytes:
         """
-        Apresenta um relatório sobre uma função executada pelo cliente.
+        Cria um pacote de estatísticas, contendo bytes transmitidos e o número de pacotes
+        perdidos.
         """
-        (transmitted_bytes, lost_packets, packet_counter) = report_data
-        packets_per_second = int(transmitted_bytes / (self.RUN_DURATION * self.PACKET_SIZE))
-        transmitted_bits_per_second = (transmitted_bytes * 8) / self.RUN_DURATION
-        transmitted_bits_formated = self.format_bytes(transmitted_bits_per_second)
-        lost_packets_percent = round((lost_packets / packet_counter) * 100, 2)
+        return value.to_bytes(self.INT_BYTE_SIZE, "big", signed=False)
 
-        role_texts = {
-            Roles.SENDER: ("transmitidos", "transmissão", "enviados"),
-            Roles.RECEIVER: ("recebidos", "recebimento", "recebidos"),
-        }
-        role_text = role_texts[self.role]
-        print("\n-----------------------------------------------------------------")
-        print(f"Resultados para o teste utilizando socket {self.socket_type.name}")
-        print(f"Total de bytes {role_text[0]}: {transmitted_bytes:,}")
-        print(
-            f"Velocidade de {self.role.value}: {transmitted_bits_formated}/s ({transmitted_bits_per_second:,}b/s)"
-        )
-        print(f"Taxa de {role_text[1]} de pacotes: {packets_per_second:,}p/s")
-        print(f"Pacotes {role_text[2]}: {packet_counter:,}")
-        print(f"Pacotes perdidos: {lost_packets:,} ({lost_packets_percent:,})%")
-        print("-----------------------------------------------------------------\n")
+    def decode_stats_packet(self, stats_packet: bytes) -> None:
+        """
+        Decodifica um pacote de estatísticas, contendo bytes transmitidos e o número de pacotes
+        perdidos.
+        """
+        return int.from_bytes(stats_packet, "big", signed=False)
 
     @abstractmethod
     def receive_data(self) -> Results:

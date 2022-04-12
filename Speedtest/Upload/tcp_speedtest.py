@@ -1,3 +1,4 @@
+from distutils.log import debug
 import logging
 from datetime import datetime, timedelta
 
@@ -34,9 +35,7 @@ class TCPSpeedTest(SpeedTest):
         """
 
         pbar = None
-        received_data_size = 0
-        current_packet = 0
-        packets_lost = 0
+        received_bytes = 0
         packet = b""
 
         next_tick = datetime.now() + timedelta(seconds=1)
@@ -45,30 +44,16 @@ class TCPSpeedTest(SpeedTest):
             if packet == self.EMPTY_PACKET:
                 break
 
-            position, _ = self.decode_data_packet(packet)
             logging.debug(
-                "posição: %d, %d bytes recebidos, tamanho atual: %d",
-                position,
+                "%d bytes recebidos, tamanho atual: %d",
                 len(packet),
-                received_data_size,
+                received_bytes,
             )
 
-            if received_data_size == 0:
+            if received_bytes == 0:
                 print("Testando velocidade de download...")
                 pbar = tqdm(total=self.RUN_DURATION, bar_format=self.TQDM_FORMAT)
-            received_data_size += len(packet)
-
-            if position != current_packet:
-                packets_lost += abs(current_packet - position)
-                logging.debug(
-                    "posição: %d, atual: %d, %d pacotes foram perdidos",
-                    position,
-                    current_packet,
-                    abs(current_packet - position),
-                )
-                current_packet = position + 1
-            else:
-                current_packet += 1
+            received_bytes += len(packet)
 
             current_time = datetime.now()
             # Atualiza a barra de progresso.
@@ -86,11 +71,15 @@ class TCPSpeedTest(SpeedTest):
         pbar.close()
 
         # Envia o total salvo para o outro usuário.
-        stats_packet = self.encode_stats_packet(received_data_size, packets_lost)
+        stats_packet = self.encode_stats_packet(received_bytes)
         self.connection.sendall(stats_packet)
+        logging.debug("Receive enviou o número de bytes recebidos")
 
+        transmitted_bytes = self.recvall(self.connection, self.INT_BYTE_SIZE)
+        transmitted_bytes = self.decode_stats_packet(transmitted_bytes)
+        logging.debug("Receive acabou")
 
-        return Results(received_data_size, packets_lost, current_packet)
+        return Results(transmitted_bytes, received_bytes)
 
     def send_data(self) -> Results:
         """
@@ -105,18 +94,15 @@ class TCPSpeedTest(SpeedTest):
 
         end_time = datetime.now() + timedelta(seconds=self.RUN_DURATION)
         next_tick = datetime.now() + timedelta(seconds=1)
-        current_packet = 0
-        byte_counter = 0
+        transmitted_bytes = 0
 
         logging.debug("Iniciando envio de dados")
         with tqdm(total=self.RUN_DURATION, bar_format=self.TQDM_FORMAT) as pbar:
             while (current_time := datetime.now()) < end_time:
-                logging.debug("Enviando pacote: %d", current_packet)
-                packet = self.encode_data_packet(current_packet)
+                packet = self.encode_data_packet()
 
                 client.sendall(packet)
-                current_packet += 1
-                byte_counter += len(packet)
+                transmitted_bytes += len(packet)
                 # Atualiza a barra de progresso.
                 if current_time >= next_tick:
                     next_tick = current_time + timedelta(seconds=1)
@@ -131,8 +117,13 @@ class TCPSpeedTest(SpeedTest):
         logging.debug("Fim do envio de dados")
 
         # Recebe o total de bytes recebidos pelo o outro usuário.
-        stats_packet = self.recvall(client, self.INT_BYTE_SIZE * 2)
-        bytes_transmitted, packets_lost = self.decode_stats_packet(stats_packet)
+        received_bytes = self.recvall(client, self.INT_BYTE_SIZE)
+        received_bytes = self.decode_stats_packet(received_bytes)
+        logging.debug("Sender recebeu o número de bytes recebidos")
 
-        logging.debug("%d bytes foram recebidos pelo o outro usuário", bytes_transmitted)
-        return Results(byte_counter, packets_lost, current_packet)
+        stats_packet = self.encode_stats_packet(transmitted_bytes)
+        client.sendall(stats_packet)
+        logging.debug("Sender acabou")
+
+        logging.debug("%d bytes foram recebidos pelo o outro usuário", received_bytes)
+        return Results(transmitted_bytes, received_bytes)
