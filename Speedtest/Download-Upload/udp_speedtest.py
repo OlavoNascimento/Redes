@@ -1,11 +1,10 @@
 import logging
 from datetime import datetime, timedelta
 from socket import timeout
-from typing import Tuple
 
 from tqdm import tqdm
 
-from generic_speedtest import SpeedTest, Roles, SocketType
+from generic_speedtest import Results, SpeedTest, Roles, SocketType
 
 
 class UDPSpeedTest(SpeedTest):
@@ -32,7 +31,7 @@ class UDPSpeedTest(SpeedTest):
             SocketType.UDP,
         )
 
-    def receive_data(self) -> Tuple[int]:
+    def receive_data(self) -> Results:
         """
         Recebe dados enviados por outro usuário, armazenando o número de bytes recebidos, ao final
         da transmissão envia o total recebido para o outro usuário.
@@ -40,10 +39,8 @@ class UDPSpeedTest(SpeedTest):
         self.connection.settimeout(1)
 
         waiting_message_presented = False
-        packets_lost = 0
-        current_packet = 0
         pbar = None
-        received_data_size = 0
+        received_bytes = 0
 
         next_tick = datetime.now() + timedelta(seconds=1)
         while True:
@@ -53,31 +50,17 @@ class UDPSpeedTest(SpeedTest):
                 if packet == self.EMPTY_PACKET:
                     break
 
-                if received_data_size == 0:
+                if received_bytes == 0:
                     print("Testando velocidade de download...")
                     pbar = tqdm(total=self.RUN_DURATION, bar_format=self.TQDM_FORMAT)
 
-                position, _ = self.decode_data_packet(packet)
                 logging.debug(
-                    "posição: %d, %d bytes recebidos, tamanho atual: %d",
-                    position,
+                    "%d bytes recebidos, tamanho atual: %d",
                     len(packet),
-                    received_data_size,
+                    received_bytes,
                 )
 
-                received_data_size += len(packet)
-
-                if position != current_packet:
-                    packets_lost += abs(current_packet - position)
-                    logging.debug(
-                        "posição: %d, atual: %d, %d pacotes foram perdidos",
-                        position,
-                        current_packet,
-                        abs(current_packet - position),
-                    )
-                    current_packet = position + 1
-                else:
-                    current_packet += 1
+                received_bytes += len(packet)
 
                 current_time = datetime.now()
                 # Atualiza a barra de progresso.
@@ -104,9 +87,13 @@ class UDPSpeedTest(SpeedTest):
         # Envia o total salvo para o outro usuário.
         while True:
             try:
-                stats_packet = self.encode_stats_packet(received_data_size, packets_lost)
+                stats_packet = self.encode_stats_packet(received_bytes)
                 self.connection.send(stats_packet)
-                status = self.connection.recv(self.DATA_SIZE)
+
+                transmitted_bytes = self.connection.recv(self.INT_BYTE_SIZE)
+                transmitted_bytes = self.decode_stats_packet(transmitted_bytes)
+
+                status = self.connection.recv(self.PACKET_SIZE)
                 if status == self.CONFIRMATION_PACKET:
                     break
             except timeout:
@@ -114,29 +101,28 @@ class UDPSpeedTest(SpeedTest):
             except ConnectionRefusedError:
                 break
 
-        return received_data_size, packets_lost
+        return Results(transmitted_bytes, received_bytes)
 
-    def send_data(self) -> Tuple[int]:
+    def send_data(self) -> Results:
         """
         Envia dados para outro usuário, ao final da transmissão recebe o total de bytes recebidos
         pelo o outro usuário.
         """
         # Uma mensagem vazia indica que o outro usuário está pronto para receber os dados.
         print("Esperando o outro usuário estabelecer uma conexão...")
-        _, address = self.connection.recvfrom(self.DATA_SIZE)
+        _, address = self.connection.recvfrom(self.PACKET_SIZE)
         print("Testando velocidade de upload...")
 
         end_time = datetime.now() + timedelta(seconds=self.RUN_DURATION)
         next_tick = datetime.now() + timedelta(seconds=1)
-        current_packet = 0
+        transmitted_bytes = 0
 
         logging.debug("Iniciando envio de dados")
         with tqdm(total=self.RUN_DURATION, bar_format=self.TQDM_FORMAT) as pbar:
             while (current_time := datetime.now()) < end_time:
-                packet = self.encode_data_packet(current_packet)
+                packet = self.encode_data_packet()
                 self.connection.sendto(packet, address)
-                logging.debug("Enviando pacote: %d", current_packet)
-                current_packet += 1
+                transmitted_bytes += len(packet)
                 # Atualiza a barra de progresso.
                 if current_time >= next_tick:
                     next_tick = current_time + timedelta(seconds=1)
@@ -150,20 +136,22 @@ class UDPSpeedTest(SpeedTest):
         logging.debug("Fim do envio de dados")
 
         self.connection.settimeout(1)
-        bytes_transmitted = 0
-        lost_packets = 0
+        received_bytes = 0
         # Recebe o total de bytes recebidos pelo o outro usuário.
-        while bytes_transmitted == 0:
+        while received_bytes == 0:
             try:
                 self.connection.sendto(self.EMPTY_PACKET, address)
-                stats_packet = self.recvall(self.connection, self.INT_BYTE_SIZE * 2)
 
-                if len(stats_packet) == self.INT_BYTE_SIZE * 2:
-                    bytes_transmitted, lost_packets = self.decode_stats_packet(stats_packet)
-                    self.connection.sendto(self.CONFIRMATION_PACKET, address)
+                received_packet = self.connection.recv(self.INT_BYTE_SIZE)
+                received_bytes = self.decode_stats_packet(received_packet)
+
+                stats_packet = self.encode_stats_packet(transmitted_bytes)
+                self.connection.sendto(stats_packet, address)
+
+                self.connection.sendto(self.CONFIRMATION_PACKET, address)
             except timeout:
                 pass
         self.connection.settimeout(0)
-        logging.debug("%d bytes foram recebidos pelo o outro usuário", bytes_transmitted)
+        logging.debug("%d bytes foram recebidos pelo o outro usuário", received_bytes)
 
-        return bytes_transmitted, lost_packets
+        return Results(transmitted_bytes, received_bytes)

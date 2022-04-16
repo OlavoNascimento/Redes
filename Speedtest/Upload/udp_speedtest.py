@@ -93,7 +93,7 @@ class UDPSpeedTest(SpeedTest):
                 transmitted_bytes = self.connection.recv(self.INT_BYTE_SIZE)
                 transmitted_bytes = self.decode_stats_packet(transmitted_bytes)
 
-                status = self.connection.recv(self.DATA_SIZE)
+                status = self.connection.recv(self.PACKET_SIZE)
                 if status == self.CONFIRMATION_PACKET:
                     break
             except timeout:
@@ -110,7 +110,7 @@ class UDPSpeedTest(SpeedTest):
         """
         # Uma mensagem vazia indica que o outro usuário está pronto para receber os dados.
         print("Esperando o outro usuário estabelecer uma conexão...")
-        _, address = self.connection.recvfrom(self.DATA_SIZE)
+        _, address = self.connection.recvfrom(self.PACKET_SIZE)
         print("Testando velocidade de upload...")
 
         end_time = datetime.now() + timedelta(seconds=self.RUN_DURATION)

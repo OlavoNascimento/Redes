@@ -1,11 +1,8 @@
 import logging
 import socket
 from abc import ABCMeta, abstractmethod
-from collections import namedtuple
 from enum import Enum
 from math import ceil
-from time import sleep
-from typing import Tuple
 
 
 class SocketType(Enum):
@@ -27,6 +24,10 @@ class Roles(Enum):
 
 
 class Results:
+    """
+    Armazena os resultados de um teste de velocidade de rede.
+    """
+
     def __init__(self, transmitted_bytes: int, received_bytes: int) -> None:
         self.transmitted_bytes = transmitted_bytes
         self.received_bytes = received_bytes
@@ -88,10 +89,8 @@ class SpeedTest(metaclass=ABCMeta):
     TQDM_FORMAT = "{n}s {bar}"
     # Tamanho da representação de um inteiro como bytes.
     INT_BYTE_SIZE = 8
-    # Tamanho dos dados presentes em um pacote.
-    DATA_SIZE = 500
     # Tamanho de cada pacote enviado entre usuários.
-    PACKET_SIZE = DATA_SIZE
+    PACKET_SIZE = 500
     # Pacote indicando o fim da transmissão de dados.
     EMPTY_PACKET = b"\x00" * PACKET_SIZE
 
@@ -114,8 +113,10 @@ class SpeedTest(metaclass=ABCMeta):
         self.role = role
         # Dados enviados entre os usuários.
         byte_string = "teste de rede 2022".encode("ascii")
-        # Preenche os dados com 500 bytes.
-        self.data = (byte_string * ceil((500 / len(byte_string))))[0:500]
+        # Preenche os dados com self.PACKET_SIZE bytes.
+        self.data = (byte_string * ceil((self.PACKET_SIZE / len(byte_string))))[
+            0 : self.PACKET_SIZE
+        ]
 
     def __del__(self):
         """
@@ -136,7 +137,7 @@ class SpeedTest(metaclass=ABCMeta):
             self.connection.bind(self.listen_address)
             results = self.send_data()
             return results
-        return None
+        return Results(0, 0)
 
     def run(self) -> None:
         """
@@ -147,17 +148,6 @@ class SpeedTest(metaclass=ABCMeta):
         # Salva os dados retornados ao executar a função atual do cliente.
         result = self.execute_role()
         result.report(self.PACKET_SIZE, self.RUN_DURATION, self.socket_type, self.role)
-
-    @staticmethod
-    def recvall(sock, size):
-        """
-        Espera receber um número de bytes através de um socket.
-        """
-        message = b""
-        while len(message) < size:
-            buffer = sock.recv(size - len(message))
-            message += buffer
-        return message
 
     def encode_data_packet(self) -> bytes:
         """
@@ -172,12 +162,23 @@ class SpeedTest(metaclass=ABCMeta):
         """
         return value.to_bytes(self.INT_BYTE_SIZE, "big", signed=False)
 
-    def decode_stats_packet(self, stats_packet: bytes) -> None:
+    def decode_stats_packet(self, stats_packet: bytes) -> int:
         """
         Decodifica um pacote de estatísticas, contendo bytes transmitidos e o número de pacotes
         perdidos.
         """
         return int.from_bytes(stats_packet, "big", signed=False)
+
+    @staticmethod
+    def recvall(sock, size):
+        """
+        Espera receber um número de bytes através de um socket.
+        """
+        message = b""
+        while len(message) < size:
+            buffer = sock.recv(size - len(message))
+            message += buffer
+        return message
 
     @abstractmethod
     def receive_data(self) -> Results:
