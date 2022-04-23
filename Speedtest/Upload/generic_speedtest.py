@@ -52,10 +52,10 @@ class Results:
         """
         lost_bytes = self.transmitted_bytes - self.received_bytes
         lost_packets = lost_bytes / packet_size
-        transmitted_packets = self.transmitted_bytes / packet_size
+        transmitted_packets = self.received_bytes / packet_size
 
-        packets_per_second = int(self.transmitted_bytes / (run_duration * packet_size))
-        transmitted_bits_per_second = (self.transmitted_bytes * 8) / run_duration
+        packets_per_second = int(self.received_bytes / (run_duration * packet_size))
+        transmitted_bits_per_second = (self.received_bytes * 8) / run_duration
         transmitted_bits_formated = self.format_bytes(transmitted_bits_per_second)
         lost_packets_percent = round((lost_packets / transmitted_packets) * 100, 2)
 
