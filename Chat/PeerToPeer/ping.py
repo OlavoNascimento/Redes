@@ -64,7 +64,8 @@ class Client:
     def send_ping(self):
         client, _ = self.connection.accept()
         self.connection = client
-        self.connection.sendall(str(datetime.now()).encode("ascii"))
+        timestamp = str(datetime.now()).encode("ascii")
+        self.connection.sendall(timestamp)
         return client
 
     def receive_ping(self):
@@ -82,7 +83,7 @@ class Client:
                 timestamp,
             )
         except (InterruptedError, UnicodeError):
-            print("Erro! Fechando a conexão...")
+            print("Erro! Fechando a conexão...", file=sys.stderr)
             self.stop()
         return timestamp
 
