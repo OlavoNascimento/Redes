@@ -19,8 +19,8 @@ class Client:
 
     def __init__(self, nickname):
         self.nick = nickname
-        # Endereço onde o servidor deve esperar por conexões.
         self.connection_type = None
+        # Endereço onde o servidor deve esperar por conexões.
         self.server = None
         # Socket que gerencia a conexão ao outro usuário.
         self.connection = None

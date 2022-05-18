@@ -120,9 +120,8 @@ class UDPSpeedTest(SpeedTest):
         logging.debug("Iniciando envio de dados")
         with tqdm(total=self.RUN_DURATION, bar_format=self.TQDM_FORMAT) as pbar:
             while (current_time := datetime.now()) < end_time:
-                packet = self.encode_data_packet()
-                self.connection.sendto(packet, address)
-                transmitted_bytes += len(packet)
+                self.connection.sendto(self.data, address)
+                transmitted_bytes += len(self.data)
                 # Atualiza a barra de progresso.
                 if current_time >= next_tick:
                     next_tick = current_time + timedelta(seconds=1)

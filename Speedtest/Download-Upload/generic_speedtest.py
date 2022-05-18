@@ -4,6 +4,7 @@ from abc import ABCMeta, abstractmethod
 from enum import Enum
 from random import randbytes
 from time import sleep
+from typing import Dict
 
 
 class SocketType(Enum):
@@ -45,9 +46,7 @@ class Results:
             index += 1
         return f"{round(size, 2)} {values[index]}"
 
-    def report(
-        self, packet_size: int, run_duration: int, header_size: int, role: Roles
-    ) -> None:
+    def report(self, packet_size: int, run_duration: int, header_size: int, role: Roles) -> None:
         """
         Apresenta um relatório sobre uma função executada pelo cliente.
         """
@@ -161,12 +160,6 @@ class SpeedTest(metaclass=ABCMeta):
             result.report(self.PACKET_SIZE, self.RUN_DURATION, self.INT_BYTE_SIZE, role)
             print()
         print("-----------------------------------------------------------------\n")
-
-    def encode_data_packet(self) -> bytes:
-        """
-        Cria um pacote para ser enviado ao outro usuário, contendo o número do pacote e dados.
-        """
-        return self.data
 
     def encode_stats_packet(self, value: int) -> bytes:
         """
