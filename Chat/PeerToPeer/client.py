@@ -12,31 +12,75 @@ from node import Address, Node
 
 
 class Client(Node):
+    """
+    Nó que utiliza um gateway para se conectar ao usuário com menor latência na rede.
+    Para isso possui um socket adicional, o qual é responsável por gerenciar a comunicação com o nó
+    pai.
+    """
+
     def __init__(self, address: Address, name: str, gateway: Address) -> None:
         super().__init__(address, name)
         self.gateway_addr = gateway
         # Socket que gerencia a conexão ao outro nó.
         self.connection = None
 
-    def receive(self):
-        try:
-            message = self.recvall(self.connection, 1024)
-            # Se a mensagem possui zero bytes o servidor fechou a conexão.
-            # Veja: https://docs.python.org/3/howto/sockets.html#using-a-socket
-            if message == b"":
-                print("O servidor fechou a conexão!", file=sys.stderr)
-                # TODO
-                # Encontrar um novo nó para se conectar
-                return
-            decoded_message = message.decode("utf-8")
-            print(decoded_message, end="")
-        except (InterruptedError, UnicodeError):
-            print("ERRO: Fechando a conexão!", file=sys.stderr)
-            self.stop()
+    def start(self):
+        super().start()
+        self.connect_to_lowest_latency()
 
-    def message_to_address(
-        self, serialized_users: List[bytes], start_position: int, message_size: int
-    ):
+    def stop(self):
+        self.notify_stop()
+        if self.connection is not None:
+            self.connection.close()
+            self.connection = None
+        super().stop()
+
+    def handle_connection(self):
+        sockets_to_watch = [sys.stdin, self.connection, self.server]
+
+        while True:
+            read_sockets, _, exception_sockets = select.select(
+                sockets_to_watch,
+                [],
+                [],
+            )
+            for sock in read_sockets:
+                # Um novo nó deseja executar um comando.
+                if sock == self.server:
+                    logging.debug("Novo evento no servidor")
+                    node_sock, _ = self.on_command()
+                    if node_sock is not None:
+                        sockets_to_watch.append(node_sock)
+                # Nó de contato ou nós dependentes enviaram uma mensagem.
+                # Lê e redistribui.
+                elif sock == self.connection or sock in self.connected_users:
+                    logging.debug("Nova mensagem de nós conectados ou conexão")
+                    self.on_message_received(sock)
+                # Existe um valor a ser lido no stdin.
+                elif sock == sys.stdin:
+                    logging.debug("Novo evento no stdin")
+                    self.write(self.connected_users + [self.connection])
+
+            # Remove usuários caso uma exceção ocorra no socket.
+            for notified_socket in exception_sockets:
+                sockets_to_watch.remove(notified_socket)
+            sleep(1)
+
+    def repeat_message(self, sender: socket.socket, message: str):
+        """
+        Repete uma mensagem para todos os dependentes e o nó responsável.
+        """
+        super().repeat_message(sender, message)
+        if sender != self.connection:
+            self.sock_send_text(self.connection, message)
+
+    @staticmethod
+    def message_to_address(serialized_users: List[bytes], start_position: int, message_size: int):
+        """
+        Converte um endereço serializado para uma tupla nomeada Address.
+        O endereço serializado possui formato:
+        $tamanho_da_endereço$host$port
+        """
         address_size = serialized_users[start_position : start_position + 8]
         address_size = int.from_bytes(address_size, "big", signed=False)
 
@@ -55,51 +99,55 @@ class Client(Node):
 
         host = address[0:-8].decode("ascii")
         port = int.from_bytes(address[-7:], "big", signed=False)
-        logging.debug(
-            "Host e porta do usuário: (%s, %d)",
-            host,
-            port,
-        )
         return Address(host, port), end
 
-    def get_latency(self, sock: socket.socket) -> int:
-        sock.sendall("PIN".encode("ascii"))
-        start_time = datetime.now()
-        end_time = self.recvall(sock, self.TIMESTAMP_SIZE)
-        end_time = datetime.fromisoformat(end_time.decode("ascii"))
-        latency = end_time - start_time
-        return latency
+    def get_latency(self, address: Address) -> int:
+        """
+        Executa um teste de latência de conexão com outro nó.
+        """
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+            sock.connect(address)
+            start_time = datetime.now()
+            logging.debug("Consultando latência desse nó até %s", address)
+            # Indica que quer executar um teste de latência.
+            sock.sendall("PIN".encode("ascii"))
 
-    def connect_to_best_user(self):
-        gateway = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        gateway.connect(self.gateway_addr)
+            timestamp_size = self.recvall(sock, 8)
+            timestamp_size = int.from_bytes(timestamp_size, "big", signed=False)
+            end_time = self.recvall(sock, timestamp_size)
+            end_time = datetime.fromisoformat(end_time.decode("ascii"))
 
-        # Avisa o gateway que esse nó quer se conectar.
-        gateway.sendall("ADD".encode("ascii"))
-        # Envia o endereço desse nó.
-        address = f"{self.address.host}:{self.address.port}".encode("ascii")
-        address_size = len(address).to_bytes(8, "big", signed=False)
-        gateway.sendall(address_size)
-        gateway.sendall(address)
+            latency = end_time - start_time
+            return latency
 
-        # Recebe os usuários já conectados no gateway.
-        message_size = self.recvall(gateway, 8)
-        message_size = int.from_bytes(message_size, "big", signed=False)
-        logging.debug(
-            "O tamanho da mensagem de endereços é: %d",
-            message_size,
-        )
-        serialized_users = self.recvall(gateway, message_size)
+    def connect_to_lowest_latency(self):
+        """
+        Pede a lista de usuários ativos na rede para o gateway, testa a latência para cada nó e
+        seleciona o nó com menor latência como a conexão principal desse nó.
+        """
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as gateway:
+            gateway.connect(self.gateway_addr)
 
-        start_position = 0
-        min_user = gateway
+            # Avisa o gateway que esse nó quer se conectar.
+            gateway.sendall("ADD".encode("ascii"))
+            # Envia o endereço desse nó.
+            address = f"{self.address.host}:{self.address.port}".encode("ascii")
+            self.sock_send_text(gateway, address)
+
+            # Recebe os usuários já conectados no gateway.
+            message_size = self.recvall(gateway, 8)
+            message_size = int.from_bytes(message_size, "big", signed=False)
+            serialized_users = self.recvall(gateway, message_size)
+
+        min_user = self.gateway_addr
         min_latency = self.get_latency(min_user)
         logging.debug(
             "Latência para o gateway %s é: %s",
-            min_user.getsockname(),
+            min_user,
             min_latency,
         )
 
+        start_position = 0
         # Itera os usuários conectados e seleciona o com menor latência.
         while start_position < message_size:
             address, end_position = self.message_to_address(
@@ -110,9 +158,7 @@ class Client(Node):
                 break
             start_position = end_position
 
-            user_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            user_sock.connect(address)
-            latency = self.get_latency(user_sock)
+            latency = self.get_latency(address)
             logging.debug(
                 "Latência para o usuário %s é: %s",
                 address,
@@ -120,73 +166,24 @@ class Client(Node):
             )
 
             if latency < min_latency:
-                min_user.close()
-                min_user = user_sock
+                min_user = address
                 min_latency = latency
-            else:
-                user_sock.close()
 
-        if min_user != gateway:
-            gateway.close()
         logging.debug(
             "Usuário %s foi escolhido para conexão, latência: %s",
-            min_user.getsockname()[0],
+            min_user,
             min_latency,
         )
-        self.connection = min_user
 
-    def start(self):
-        super().start()
-        self.connect_to_best_user()
-
-    def stop(self):
-        self.notify_stop()
-        if self.connection is not None:
-            self.connection.close()
-            self.connection = None
-        super().stop()
+        self.connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.connection.connect(min_user)
+        # Indica que esse nó quer se tornar dependente do nó com menor latência.
+        self.connection.sendall("LIN".encode("ascii"))
 
     def notify_stop(self):
+        """
+        Indica para os usuários que dependem desse nó que eles devem buscar uma nova conexão para a
+        rede.
+        """
         # TODO
         # Implementar notificação de saída.
-        pass
-
-    def handle_connection(self):
-        sockets_to_watch = [sys.stdin, self.connection, self.server]
-
-        while True:
-            read_sockets, _, exception_sockets = select.select(
-                sockets_to_watch,
-                [],
-                [],
-            )
-            for sock in read_sockets:
-                # Nó de contato enviou uma mensagem.
-                # Lê e redistribui.
-                if sock == self.connection:
-                    self.receive()
-                # Um novo nó quer se conectar.
-                # Adiciona a lista de nós conectados.
-                elif sock == self.server:
-                    new_user = self.on_command()
-                    if new_user is not None:
-                        sockets_to_watch.append(new_user)
-                elif sock == sys.stdin:
-                    self.write()
-
-            # Remove usuários caso uma exceção ocorra no socket.
-            for notified_socket in exception_sockets:
-                sockets_to_watch.remove(notified_socket)
-            sleep(1)
-
-    def on_command(self) -> socket.socket | None:
-        node_sock, _ = self.server.accept()
-
-        action = self.recvall(node_sock, 3).decode("ascii")
-        if action == "LIN":
-            logging.debug("Adicionando endereço aos nós dependentes!")
-            return node_sock
-        if action == "PIN":
-            self.on_ping(node_sock)
-            return None
-        return None

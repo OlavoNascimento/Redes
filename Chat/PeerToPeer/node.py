@@ -1,19 +1,23 @@
 #!/usr/bin/python3
 
-from platform import node
+import abc
 import socket
 import logging
 from datetime import datetime
 import sys
 from collections import namedtuple
-from typing import List
+from typing import List, Tuple
 
 
 Address = namedtuple("address", ["host", "port"])
 
 
-class Node:
-    TIMESTAMP_SIZE = 26
+class Node(metaclass=abc.ABCMeta):
+    """
+    Nó genérico que faz parte de uma rede. Possui nome, endereço, além de uma lista de nós que
+    dependem dele para receber mensagens de outros usuários e um socket para se comunicar com novos
+    usuários.
+    """
 
     def __init__(self, address: Address, name: str):
         self.name = name
@@ -28,29 +32,35 @@ class Node:
         self.stop()
 
     def run(self):
+        """
+        Executa o programa até ctrl+c ser pressionado.
+        """
         try:
             self.start()
             self.handle_connection()
-        except KeyboardInterrupt as e:
-            raise e
+        except KeyboardInterrupt:
             pass
-        except OSError as err:
-            raise err
-            print("ERRO: Não foi possível se conectar ao host de entrada!", file=sys.stderr)
-            print(err, file=sys.stderr)
-            sys.exit(1)
         finally:
             self.stop()
 
+    @abc.abstractmethod
     def handle_connection(self):
-        # TODO Abstract
-        return NotImplementedError()
+        """
+        Reage a eventos em diferentes sockets e chama os métodos apropriados.
+        """
+        return NotImplementedError("Função handle_connection deve ser implementada!")
 
     def start(self):
+        """
+        Prepara o socket de escuta do nó.
+        """
         self.server.bind(self.address)
         self.server.listen()
 
     def stop(self):
+        """
+        Fecha o socket de escuta do nó.
+        """
         if self.server is not None:
             self.server.close()
             self.server = None
@@ -66,24 +76,89 @@ class Node:
             message += buffer
         return message
 
-    def write(self):
+    def write(self, users: List[socket.socket]):
+        """
+        Envia uma mensagem de texto para vários usuários.
+        """
         message = sys.stdin.readline()
-        if len(message) > 0:
-            now = datetime.now()
-            # TODO extract to method
-            for sock in self.connected_users:
-                message = f"[{now.hour}:{now.minute}] {self.name}: {message}"
-                sock.sendall(message.encode("utf-8"))
+        if len(message) <= 0:
+            return
+        now = datetime.now()
+        message = f"[{now.hour}:{now.minute}] {self.name}: {message}"
+        print(message, end="")
 
-    # def on_add(self, node_sock: socket.socket) -> None:
-    #     logging.debug(
-    #         "Adicionando novo usuário a lista de nós dependentes",
-    #     )
-    #     self.connected_users.append(node_sock)
+        message = message.encode("utf-8")
+        for user in users:
+            self.sock_send_text(user, message)
 
-    def on_ping(self, node_sock: socket.socket) -> None:
+    def on_message_received(self, sock: socket.socket) -> None:
+        """
+        Método executado toda vez que uma mensagem é recebida. Decodifica a mensagem, apresenta na
+        saída padrão e repassa a mensagem para os usuários conectados a esse nó.
+        """
+        try:
+            message_size = self.recvall(sock, 8)
+            message_size = int.from_bytes(message_size, "big", signed=False)
+            message = self.recvall(sock, message_size)
+            # Se a mensagem possui zero bytes o servidor fechou a conexão.
+            # Veja: https://docs.python.org/3/howto/sockets.html#using-a-socket
+            if message == b"":
+                return
+            decoded_message = message.decode("utf-8")
+            print(decoded_message, end="")
+            self.repeat_message(sock, message)
+        except (InterruptedError, UnicodeError):
+            print("ERRO: Fechando a conexão!", file=sys.stderr)
+            self.stop()
+
+    def repeat_message(self, sender: socket.socket, message: str):
+        """
+        Repassa uma mensagem recebida para os nós conectados, exceto para o nó que enviou a mensagem.
+        """
+        for user in self.connected_users:
+            if user != sender:
+                self.sock_send_text(user, message)
+
+    def on_command(self) -> Tuple[socket.socket, str]:
+        """
+        Recebe e executa um comando especificado por um usuário.
+        """
+        node_sock, _ = self.server.accept()
+        action = self.recvall(node_sock, 3).decode("ascii")
+        if action == "LIN":
+            self.on_link(node_sock)
+        if action == "PIN":
+            self.on_ping(node_sock)
+            node_sock.close()
+            node_sock = None
+        return node_sock, action
+
+    @staticmethod
+    def on_ping(node_sock: socket.socket) -> None:
+        """
+        Método executado quando um usuário pede para esse nó realizar um teste de latência.
+        """
         logging.debug(
             "Recebido pedido de latência",
         )
         timestamp = str(datetime.now()).encode("ascii")
+        timestamp_size = len(timestamp).to_bytes(8, "big", signed=False)
+        node_sock.sendall(timestamp_size)
         node_sock.sendall(timestamp)
+
+    def on_link(self, node_sock: socket.socket) -> None:
+        """
+        Indica que um usuário quer se conectar a esse nó. Para isso adiciona o novo nó a lista de
+        nós conectados.
+        """
+        logging.debug("Adicionando nó como dependente")
+        self.connected_users.append(node_sock)
+
+    @staticmethod
+    def sock_send_text(sock: socket.socket, text: bytes) -> None:
+        """
+        Envia o tamanho de um texto e o texto para um socket.
+        """
+        text_size = len(text).to_bytes(8, "big", signed=False)
+        sock.sendall(text_size)
+        sock.sendall(text)
