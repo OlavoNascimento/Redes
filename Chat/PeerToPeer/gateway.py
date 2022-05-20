@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+from enum import Enum
 import logging
 import select
 import sys
@@ -8,6 +9,17 @@ from time import sleep
 from typing import List, Tuple
 
 from node import Address, Node
+
+
+class GatewayCommands(Enum):
+    """
+    Commandos que podem ser executados por um gateway.
+    """
+
+    # Indica que um nó quer ser adicionado a rede.
+    ADD = "ADD".encode("ascii")
+    # Remove um nó da rede.
+    REMOVE = "REM".encode("ascii")
 
 
 class Gateway(Node):
@@ -85,7 +97,7 @@ class Gateway(Node):
         rede.
         """
         node_sock, action = super().on_command()
-        if action == "ADD":
+        if action == GatewayCommands.ADD.value:
             self.on_add(node_sock)
         # TODO Implementar ação REM para lidar com a saída de um usuário.
         return node_sock, action

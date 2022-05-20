@@ -7,8 +7,9 @@ import sys
 from datetime import datetime
 from time import sleep
 from typing import List
+from gateway import GatewayCommands
 
-from node import Address, Node
+from node import Address, Node, NodeCommands
 
 
 class Client(Node):
@@ -110,7 +111,7 @@ class Client(Node):
             start_time = datetime.now()
             logging.debug("Consultando latência desse nó até %s", address)
             # Indica que quer executar um teste de latência.
-            sock.sendall("PIN".encode("ascii"))
+            sock.sendall(NodeCommands.PING.value)
 
             timestamp_size = self.recvall(sock, 8)
             timestamp_size = int.from_bytes(timestamp_size, "big", signed=False)
@@ -129,7 +130,7 @@ class Client(Node):
             gateway.connect(self.gateway_addr)
 
             # Avisa o gateway que esse nó quer se conectar.
-            gateway.sendall("ADD".encode("ascii"))
+            gateway.sendall(GatewayCommands.ADD.value)
             # Envia o endereço desse nó.
             address = f"{self.address.host}:{self.address.port}".encode("ascii")
             self.sock_send_text(gateway, address)
@@ -178,7 +179,7 @@ class Client(Node):
         self.connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.connection.connect(min_user)
         # Indica que esse nó quer se tornar dependente do nó com menor latência.
-        self.connection.sendall("LIN".encode("ascii"))
+        self.connection.sendall(NodeCommands.LINK.value)
 
     def notify_stop(self):
         """

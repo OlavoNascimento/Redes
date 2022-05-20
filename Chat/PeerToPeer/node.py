@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import abc
+from enum import Enum
 import socket
 import logging
 from datetime import datetime
@@ -10,6 +11,17 @@ from typing import List, Tuple
 
 
 Address = namedtuple("address", ["host", "port"])
+
+
+class NodeCommands(Enum):
+    """
+    Commandos que podem ser executados por um nó genérico.
+    """
+
+    # Realiza a latência desse nó com outro nó na rede.
+    PING = "PIN".encode("ascii")
+    # Indica que outro nó quer utilizar esse nó para receber dados.
+    LINK = "LIN".encode("ascii")
 
 
 class Node(metaclass=abc.ABCMeta):
@@ -113,7 +125,8 @@ class Node(metaclass=abc.ABCMeta):
 
     def repeat_message(self, sender: socket.socket, message: str):
         """
-        Repassa uma mensagem recebida para os nós conectados, exceto para o nó que enviou a mensagem.
+        Repassa uma mensagem recebida para os nós conectados, exceto para o nó que enviou a
+        mensagem.
         """
         for user in self.connected_users:
             if user != sender:
@@ -124,10 +137,10 @@ class Node(metaclass=abc.ABCMeta):
         Recebe e executa um comando especificado por um usuário.
         """
         node_sock, _ = self.server.accept()
-        action = self.recvall(node_sock, 3).decode("ascii")
-        if action == "LIN":
+        action = self.recvall(node_sock, 3)
+        if action == NodeCommands.LINK.value:
             self.on_link(node_sock)
-        if action == "PIN":
+        if action == NodeCommands.PING.value:
             self.on_ping(node_sock)
             node_sock.close()
             node_sock = None
