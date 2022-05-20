@@ -77,17 +77,6 @@ class Node(metaclass=abc.ABCMeta):
             self.server.close()
             self.server = None
 
-    @staticmethod
-    def recvall(sock, size):
-        """
-        Espera receber um número de bytes através de um socket.
-        """
-        message = b""
-        while len(message) < size:
-            buffer = sock.recv(size - len(message))
-            message += buffer
-        return message
-
     def write(self, users: List[socket.socket]):
         """
         Envia uma mensagem de texto para vários usuários.
@@ -101,7 +90,7 @@ class Node(metaclass=abc.ABCMeta):
 
         message = message.encode("utf-8")
         for user in users:
-            self.sock_send_text(user, message)
+            self.send_with_size(user, message)
 
     def on_message_received(self, sock: socket.socket) -> None:
         """
@@ -130,7 +119,7 @@ class Node(metaclass=abc.ABCMeta):
         """
         for user in self.connected_users:
             if user != sender:
-                self.sock_send_text(user, message)
+                self.send_with_size(user, message)
 
     def on_command(self) -> Tuple[socket.socket, str]:
         """
@@ -168,10 +157,30 @@ class Node(metaclass=abc.ABCMeta):
         self.connected_users.append(node_sock)
 
     @staticmethod
-    def sock_send_text(sock: socket.socket, text: bytes) -> None:
+    def send_with_size(sock: socket.socket, text: bytes) -> None:
         """
         Envia o tamanho de um texto e o texto para um socket.
         """
         text_size = len(text).to_bytes(8, "big", signed=False)
         sock.sendall(text_size)
         sock.sendall(text)
+
+    def recv_with_size(self, sock: socket.socket) -> Tuple[bytes, int]:
+        """
+        Recebe uma mensagem com um tamanho variável em um socket.
+        """
+        size = self.recvall(sock, 8)
+        size = int.from_bytes(size, "big", signed=False)
+        value = self.recvall(sock, size)
+        return value, size
+
+    @staticmethod
+    def recvall(sock, size):
+        """
+        Espera receber um número de bytes através de um socket.
+        """
+        message = b""
+        while len(message) < size:
+            buffer = sock.recv(size - len(message))
+            message += buffer
+        return message

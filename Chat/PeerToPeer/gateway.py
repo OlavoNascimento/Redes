@@ -108,10 +108,8 @@ class Gateway(Node):
         a lista de nós da redes.
         """
         self.send_current_users(node_sock)
-        address_size = self.recvall(node_sock, 8)
-        address_size = int.from_bytes(address_size, "big", signed=False)
-
-        address = self.recvall(node_sock, address_size).decode("ascii")
+        address, _ = self.recv_with_size(node_sock)
+        address = address.decode("ascii")
         logging.debug("Adicionando endereço %s a lista de usuários!", address)
 
         self.network_users.append(address)

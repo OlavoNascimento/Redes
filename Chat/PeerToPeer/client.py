@@ -73,7 +73,7 @@ class Client(Node):
         """
         super().repeat_message(sender, message)
         if sender != self.connection:
-            self.sock_send_text(self.connection, message)
+            self.send_with_size(self.connection, message)
 
     @staticmethod
     def message_to_address(serialized_users: List[bytes], start_position: int, message_size: int):
@@ -113,9 +113,7 @@ class Client(Node):
             # Indica que quer executar um teste de latência.
             sock.sendall(NodeCommands.PING.value)
 
-            timestamp_size = self.recvall(sock, 8)
-            timestamp_size = int.from_bytes(timestamp_size, "big", signed=False)
-            end_time = self.recvall(sock, timestamp_size)
+            end_time, _ = self.recv_with_size(sock)
             end_time = datetime.fromisoformat(end_time.decode("ascii"))
 
             latency = end_time - start_time
@@ -133,12 +131,10 @@ class Client(Node):
             gateway.sendall(GatewayCommands.ADD.value)
             # Envia o endereço desse nó.
             address = f"{self.address.host}:{self.address.port}".encode("ascii")
-            self.sock_send_text(gateway, address)
+            self.send_with_size(gateway, address)
 
             # Recebe os usuários já conectados no gateway.
-            message_size = self.recvall(gateway, 8)
-            message_size = int.from_bytes(message_size, "big", signed=False)
-            serialized_users = self.recvall(gateway, message_size)
+            serialized_users, message_size = self.recv_with_size(gateway)
 
         min_user = self.gateway_addr
         min_latency = self.get_latency(min_user)
