@@ -77,7 +77,7 @@ class Node(metaclass=abc.ABCMeta):
             self.server.close()
             self.server = None
 
-    def write(self, users: List[socket.socket]):
+    def send_message(self, users: List[socket.socket]):
         """
         Envia uma mensagem de texto para vários usuários.
         """

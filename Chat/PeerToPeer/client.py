@@ -60,7 +60,7 @@ class Client(Node):
                 # Existe um valor a ser lido no stdin.
                 elif sock == sys.stdin:
                     logging.debug("Novo evento no stdin")
-                    self.write(self.connected_users + [self.connection])
+                    self.send_message(self.connected_users + [self.connection])
 
             # Remove usuários caso uma exceção ocorra no socket.
             for notified_socket in exception_sockets:
@@ -79,8 +79,7 @@ class Client(Node):
     def message_to_address(serialized_users: List[bytes], start_position: int, message_size: int):
         """
         Converte um endereço serializado para uma tupla nomeada Address.
-        O endereço serializado possui formato:
-        $tamanho_da_endereço$host$port
+        O endereço serializado possui o formato: $tamanho_do_endereço$host$port
         """
         address_size = serialized_users[start_position : start_position + 8]
         address_size = int.from_bytes(address_size, "big", signed=False)

@@ -62,7 +62,7 @@ class Gateway(Node):
                 # Existe um valor a ser lido no stdin.
                 elif sock == sys.stdin:
                     logging.debug("Novo evento no stdin")
-                    self.write(self.connected_users)
+                    self.send_message(self.connected_users)
 
             # Remove usuários caso uma exceção ocorra no socket.
             for notified_socket in exception_sockets:
@@ -105,7 +105,7 @@ class Gateway(Node):
     def on_add(self, node_sock: socket.socket) -> None:
         """
         Executado quando um usuário quer fazer parte da rede. Para isso o novo usuário é adicionado
-        a lista de nós da redes.
+        a lista de nós da rede.
         """
         self.send_current_users(node_sock)
         address, _ = self.recv_with_size(node_sock)
