@@ -7,6 +7,7 @@ import logging
 from datetime import datetime
 import sys
 from collections import namedtuple
+from time import sleep
 from typing import List, Tuple
 
 
@@ -22,6 +23,10 @@ class NodeCommands(Enum):
     PING = "PIN".encode("ascii")
     # Indica que outro nó quer utilizar esse nó para receber dados.
     LINK = "LIN".encode("ascii")
+    # Indica que o nó que está conectado vai sair.
+    REMOVE = "REM".encode("ascii")
+    MESSAGE = "MSG".encode("ascii")
+
 
 
 class Node(metaclass=abc.ABCMeta):
@@ -91,6 +96,7 @@ class Node(metaclass=abc.ABCMeta):
 
         message = message.encode("utf-8")
         for user in users:
+            user.sendall(NodeCommands.MESSAGE.value)
             self.send_with_size(user, message)
 
     def on_message_received(self, sock: socket.socket) -> None:
@@ -135,6 +141,13 @@ class Node(metaclass=abc.ABCMeta):
             node_sock.close()
             node_sock = None
         return node_sock, action
+
+    def on_command_connected(self, sock: socket.socket) -> Tuple[socket.socket, str]:
+        action = self.recvall(sock, 3)
+        if action == NodeCommands.REMOVE.value:
+            self.on_rem(sock)
+        if action == NodeCommands.MESSAGE.value:
+            self.on_message_received(sock)
 
     @staticmethod
     def on_ping(node_sock: socket.socket) -> None:
@@ -191,3 +204,12 @@ class Node(metaclass=abc.ABCMeta):
         Reage a eventos em diferentes sockets e chama os métodos apropriados.
         """
         return NotImplementedError("Função notify_stop deve ser implementada!")
+
+    def on_rem(self, node_sock: socket.socket) -> None:
+        """
+        Executado quando um usuário desconectar. O usuário que desconectou é retirado da lista de 
+        endereços disponíveis no gateway
+        """
+
+        logging.debug("Procurando uma nova conexão para %s", self.server)
+        self.connect_to_lowest_latency()

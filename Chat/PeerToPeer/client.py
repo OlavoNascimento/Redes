@@ -54,9 +54,9 @@ class Client(Node):
                         sockets_to_watch.append(node_sock)
                 # Nó de contato ou nós dependentes enviaram uma mensagem.
                 # Lê e redistribui.
-                elif sock == self.connection or sock in self.connected_users:
+                if sock == self.connection or sock in self.connected_users:
                     logging.debug("Nova mensagem de nós conectados ou conexão")
-                    self.on_message_received(sock)
+                    self.on_command_connected(sock)
                 # Existe um valor a ser lido no stdin.
                 elif sock == sys.stdin:
                     logging.debug("Novo evento no stdin")
@@ -125,7 +125,6 @@ class Client(Node):
         """
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as gateway:
             gateway.connect(self.gateway_addr)
-
             # Avisa o gateway que esse nó quer se conectar.
             gateway.sendall(GatewayCommands.ADD.value)
             # Envia o endereço desse nó.
@@ -182,17 +181,16 @@ class Client(Node):
         rede.
         """
         # Remove o client (que está sendo desconectado) da lista de endereços do gateway
+        for connected in self.connected_users:
+            connected.sendall(NodeCommands.REMOVE.value)
+            #notificar todos os sockets de "connected_users" que eles devem
+            #procurar um novo socket para serem dependentes
+        # Implementar notificação de saída.
+
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as gateway:
             # Avisao ao gateway que está havendo uma remoção
             gateway.connect(self.gateway_addr)
             gateway.sendall(GatewayCommands.REMOVE.value)
 
-            # Envia ao gateway o endereço a ser removido
             address = f"{self.address.host}:{self.address.port}".encode("ascii")
             self.send_with_size(gateway, address)
-
-        # for connected in self.connected_users:
-            #TODO
-            #notificar todos os sockets de "connected_users" que eles devem
-            #procurar um novo socket para serem dependentes
-        # Implementar notificação de saída.

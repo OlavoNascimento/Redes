@@ -58,7 +58,7 @@ class Gateway(Node):
                 # Um nó existente transmitiu uma mensagem.
                 elif sock in self.connected_users:
                     logging.debug("Nova mensagem de nós conectados")
-                    self.on_message_received(sock)
+                    self.on_command_connected(sock)
                 # Existe um valor a ser lido no stdin.
                 elif sock == sys.stdin:
                     logging.debug("Novo evento no stdin")
