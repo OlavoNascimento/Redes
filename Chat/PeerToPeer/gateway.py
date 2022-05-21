@@ -99,7 +99,8 @@ class Gateway(Node):
         node_sock, action = super().on_command()
         if action == GatewayCommands.ADD.value:
             self.on_add(node_sock)
-        # TODO Implementar ação REM para lidar com a saída de um usuário.
+        if action == GatewayCommands.REMOVE.value:
+            self.on_rem(node_sock)
         return node_sock, action
 
     def on_add(self, node_sock: socket.socket) -> None:
@@ -113,3 +114,24 @@ class Gateway(Node):
         logging.debug("Adicionando endereço %s a lista de usuários!", address)
 
         self.network_users.append(address)
+
+    def on_rem(self, node_sock: socket.socket) -> None:
+        """
+        Executado quando um usuário desconectar. O usuário que desconectou é retirado da lista de 
+        endereços disponíveis no gateway
+        """
+        address_size = self.recvall(node_sock, 8)
+        address_size = int.from_bytes(address_size, "big", signed=False)
+
+        address = self.recvall(node_sock, address_size).decode("ascii")
+        if address in self.network_users:
+            logging.debug("Removendo endereço %s da lista de usuários!", address)
+            self.network_users.remove(address)
+
+    def notify_stop(self):
+        """
+        Indica para os usuários que dependem desse nó que eles devem buscar uma nova conexão para a
+        rede.
+        """
+        # TODO
+        # Implementar notificação de saída.

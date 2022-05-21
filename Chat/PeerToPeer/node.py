@@ -51,6 +51,7 @@ class Node(metaclass=abc.ABCMeta):
             self.start()
             self.handle_connection()
         except KeyboardInterrupt:
+            self.notify_stop()
             pass
         finally:
             self.stop()
@@ -184,3 +185,9 @@ class Node(metaclass=abc.ABCMeta):
             buffer = sock.recv(size - len(message))
             message += buffer
         return message
+
+    def notify_stop(self):
+        """
+        Reage a eventos em diferentes sockets e chama os métodos apropriados.
+        """
+        return NotImplementedError("Função notify_stop deve ser implementada!")

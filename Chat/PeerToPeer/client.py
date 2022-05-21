@@ -181,5 +181,18 @@ class Client(Node):
         Indica para os usuários que dependem desse nó que eles devem buscar uma nova conexão para a
         rede.
         """
-        # TODO
+        # Remove o client (que está sendo desconectado) da lista de endereços do gateway
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as gateway:
+            # Avisao ao gateway que está havendo uma remoção
+            gateway.connect(self.gateway_addr)
+            gateway.sendall(GatewayCommands.REMOVE.value)
+
+            # Envia ao gateway o endereço a ser removido
+            address = f"{self.address.host}:{self.address.port}".encode("ascii")
+            self.send_with_size(gateway, address)
+
+        # for connected in self.connected_users:
+            #TODO
+            #notificar todos os sockets de "connected_users" que eles devem
+            #procurar um novo socket para serem dependentes
         # Implementar notificação de saída.
