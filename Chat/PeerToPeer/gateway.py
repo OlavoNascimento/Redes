@@ -58,12 +58,16 @@ class Gateway(Node):
                     logging.debug("Novo evento no servidor")
                     node_sock, _ = self.server.accept()
                     action = self.on_command(node_sock)
-                    if action in (GatewayCommands.ADD.value, NodeCommands.LINK.value):
+                    # Novo nó dependente adicionado, é preciso observar eventos no socket.
+                    if action == NodeCommands.LINK.value:
                         sockets_to_watch.append(node_sock)
                 # Um nó existente transmitiu uma mensagem.
                 elif sock in self.connected_users:
-                    logging.debug("Nova mensagem de nós conectados")
-                    self.on_command(sock)
+                    logging.debug("Novo evento nos nós conectados")
+                    action = self.on_command(sock)
+                    # Nó se desconectou, os eventos não devem ser observados.
+                    if action == NodeCommands.UNLINK.value:
+                        sockets_to_watch.remove(sock)
                 # Existe um valor a ser lido no stdin.
                 elif sock == sys.stdin:
                     logging.debug("Novo evento no stdin")
@@ -71,6 +75,7 @@ class Gateway(Node):
 
             # Remove usuários caso uma exceção ocorra no socket.
             for notified_socket in exception_sockets:
+                logging.error("Erro no socket %s", notified_socket)
                 sockets_to_watch.remove(notified_socket)
             sleep(1)
 

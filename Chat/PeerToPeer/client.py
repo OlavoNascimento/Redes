@@ -1,6 +1,5 @@
 #!/usr/bin/python3
 
-from enum import Enum
 import logging
 import select
 import socket
@@ -11,15 +10,6 @@ from typing import List
 from gateway import GatewayCommands
 
 from node import Address, Node, NodeCommands
-
-
-class ClientCommands(Enum):
-    """
-    Commandos que podem ser executados por um cliente.
-    """
-
-    # O nó pai notificou que irá sair da rede.
-    UNLINK = "UNL".encode("ascii")
 
 
 class Client(Node):
@@ -61,11 +51,19 @@ class Client(Node):
                     logging.debug("Novo evento no servidor/nós conectados/conexão")
                     node_sock, _ = self.server.accept()
                     action = self.on_command(node_sock)
+                    # Novo nó dependente adicionado, é preciso observar eventos no socket.
                     if action == NodeCommands.LINK.value:
                         sockets_to_watch.append(node_sock)
                 elif sock == self.connection or sock in self.connected_users:
-                    logging.debug("Nova mensagem de nós conectados ou conexão")
-                    self.on_command(sock)
+                    logging.debug("Novo evento nos nós conectados")
+                    action = self.on_command(sock)
+                    # Nó se desconectou, os eventos não devem ser observados.
+                    if action == NodeCommands.UNLINK.value:
+                        sockets_to_watch.remove(sock)
+                        # Caso o nó pai se desconectou é preciso atualizar o socket que está sendo
+                        # observado.
+                        if self.connection not in sockets_to_watch:
+                            sockets_to_watch.append(self.connection)
                 # Existe um valor a ser lido no stdin.
                 elif sock == sys.stdin:
                     logging.debug("Novo evento no stdin")
@@ -73,6 +71,7 @@ class Client(Node):
 
             # Remove usuários caso uma exceção ocorra no socket.
             for notified_socket in exception_sockets:
+                logging.error("Erro no socket %s", notified_socket)
                 sockets_to_watch.remove(notified_socket)
             sleep(1)
 
@@ -191,31 +190,31 @@ class Client(Node):
         # Indica que esse nó quer se tornar dependente do nó com menor latência.
         self.connection.sendall(NodeCommands.LINK.value)
 
-    def on_command(self, node_sock: socket.socket) -> str:
+    def on_unlink(self, node_sock: socket.socket) -> None:
         """
-        Adiciona o comando add ao método on_command, o qual é responsável por adicionar novos nó a
-        rede.
+        Executado quando um nó dependente se desconecta, remove o nó que saiu da lista de usuário
+        conectados.
+        Caso o nó pai tenha se desconectado da rede esse nó busca uma nova conexão com a rede.
         """
-        action = super().on_command(node_sock)
-        if action == ClientCommands.UNLINK.value:
-            self.on_unlink()
-        return action
-
-    def on_unlink(self) -> None:
-        """
-        Executado quando um usuário desconectar. O usuário que desconectou é retirado da lista de
-        endereços disponíveis no gateway
-        """
-        logging.debug("Procurando uma nova conexão com a rede")
-        self.connect_to_lowest_latency()
+        super().on_unlink(node_sock)
+        # Nó pai se desconectou, é preciso encontrar outro nó de conexão.
+        if node_sock == self.connection:
+            logging.debug("Procurando uma nova conexão com a rede")
+            self.connect_to_lowest_latency()
 
     def notify_stop(self):
         """
         Indica para os usuários que dependem desse nó que eles devem buscar uma nova conexão para a
         rede.
         """
-        if not self.connected_users:
+        if self.connection is None:
             return
+        super().notify_stop()
+        logging.debug(
+            "Avisando nó pai da saída desse nó!",
+        )
+        self.connection.sendall(NodeCommands.UNLINK.value)
+
         logging.debug(
             "Avisando gateway da saída desse nó!",
         )
@@ -226,9 +225,3 @@ class Client(Node):
 
             address = f"{self.address.host}:{self.address.port}".encode("ascii")
             self.send_with_size(gateway, address)
-
-        logging.debug(
-            "Avisando nós dependentes da saída desse nó!",
-        )
-        for user in self.connected_users:
-            user.sendall(ClientCommands.UNLINK.value)

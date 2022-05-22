@@ -22,6 +22,8 @@ class NodeCommands(Enum):
     PING = "PIN".encode("ascii")
     # Indica que outro nó quer utilizar esse nó para receber dados.
     LINK = "LIN".encode("ascii")
+    # O nó pai notificou que irá sair da rede.
+    UNLINK = "UNL".encode("ascii")
     # Um nó enviou uma mensagem.
     MESSAGE = "MSG".encode("ascii")
 
@@ -52,9 +54,8 @@ class Node(metaclass=abc.ABCMeta):
         try:
             self.start()
             self.handle_connection()
-        # TODO
-        # except KeyboardInterrupt:
-        #     pass
+        except KeyboardInterrupt:
+            pass
         finally:
             self.stop()
 
@@ -140,6 +141,8 @@ class Node(metaclass=abc.ABCMeta):
             node_sock = None
         elif action == NodeCommands.MESSAGE.value:
             self.on_message_received(node_sock)
+        elif action == NodeCommands.UNLINK.value:
+            self.on_unlink(node_sock)
         return action
 
     def on_ping(self, node_sock: socket.socket) -> None:
@@ -159,6 +162,15 @@ class Node(metaclass=abc.ABCMeta):
         """
         logging.debug("Adicionando nó como dependente")
         self.connected_users.append(node_sock)
+
+    def on_unlink(self, node_sock: socket.socket) -> None:
+        """
+        Executado quando um nó dependente se desconecta, remove o nó que saiu da lista de usuário
+        conectados.
+        """
+        logging.debug("Removendo nó como dependente")
+        if node_sock in self.connected_users:
+            self.connected_users.remove(node_sock)
 
     @staticmethod
     def send_with_size(sock: socket.socket, text: bytes) -> None:
@@ -188,3 +200,16 @@ class Node(metaclass=abc.ABCMeta):
             buffer = sock.recv(size - len(message))
             message += buffer
         return message
+
+    def notify_stop(self):
+        """
+        Indica para os usuários que dependem desse nó que eles devem buscar uma nova conexão para a
+        rede.
+        """
+        if not self.connected_users:
+            return
+        logging.debug(
+            "Avisando nós dependentes da saída desse nó!",
+        )
+        for user in self.connected_users:
+            user.sendall(NodeCommands.UNLINK.value)
