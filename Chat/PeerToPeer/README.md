@@ -2,6 +2,19 @@
 
 - Envia mensagens entre vários usuários utilizando uma rede P2P.
 
+# Como executar
+- Execute:
+```sh
+$ python3 ./chat.py
+```
+- Forneça um nome para o usuário.
+- Responda se deseja utilizar o nó como host de entrada (gateway).
+- Defina um endereço o nó.
+- Caso o nó **não** seja um gateway, forneça o endereço de um gateway para que o nó se conecte a rede.
+
+# Mensagem de debug
+- Para ver mais informações de execução habilite o log de execução no arquivo chat.py (linha 18).
+
 # Exemplo de execução
 1. **S**ervidor: Criado
 2. **C**liente**1**: Conecta
