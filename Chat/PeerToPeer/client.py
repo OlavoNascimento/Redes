@@ -117,7 +117,12 @@ class Client(Node):
         Executa um teste de latência de conexão com outro nó.
         """
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            sock.connect(address)
+            while True:
+                try:
+                    sock.connect(address)
+                    break
+                except ConnectionRefusedError:
+                    sleep(1)
             start_time = datetime.now()
             logging.debug("Consultando latência desse nó até %s", address)
             # Indica que quer executar um teste de latência.
