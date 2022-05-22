@@ -61,7 +61,7 @@ class Client(Node):
                     logging.debug("Novo evento no servidor/nós conectados/conexão")
                     node_sock, _ = self.server.accept()
                     action = self.on_command(node_sock)
-                    if action in (GatewayCommands.ADD.value, NodeCommands.LINK.value):
+                    if action == NodeCommands.LINK.value:
                         sockets_to_watch.append(node_sock)
                 elif sock == self.connection or sock in self.connected_users:
                     logging.debug("Nova mensagem de nós conectados ou conexão")
@@ -75,6 +75,17 @@ class Client(Node):
             for notified_socket in exception_sockets:
                 sockets_to_watch.remove(notified_socket)
             sleep(1)
+
+    def repeat_message(self, sender: socket.socket, message: str):
+        """
+        Repassa uma mensagem recebida para os nós conectados, exceto para o nó que enviou a
+        mensagem.
+        Também envia a mensagem para o nó pai.
+        """
+        super().repeat_message(sender, message)
+        if self.connection != sender:
+            self.connection.sendall(NodeCommands.MESSAGE.value)
+            self.send_with_size(self.connection, message)
 
     @staticmethod
     def message_to_address(serialized_users: List[bytes], start_position: int, message_size: int):

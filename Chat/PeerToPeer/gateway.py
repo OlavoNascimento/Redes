@@ -99,7 +99,6 @@ class Gateway(Node):
         Adiciona o comando add e remove ao método on_command.
         """
         action = super().on_command(node_sock)
-        logging.debug("New action %s", action)
         if action == GatewayCommands.ADD.value:
             self.on_add(node_sock)
         elif action == GatewayCommands.REMOVE.value:
@@ -113,10 +112,10 @@ class Gateway(Node):
         """
         address, _ = self.recv_with_size(node_sock)
         address = address.decode("ascii")
+        self.send_current_users(node_sock)
         if address not in self.network_users:
             logging.debug("Adicionando endereço %s a lista de usuários!", address)
             self.network_users.append(address)
-        self.send_current_users(node_sock)
 
     def on_remove(self, node_sock: socket.socket) -> None:
         """
@@ -126,5 +125,6 @@ class Gateway(Node):
         address, _ = self.recv_with_size(node_sock)
         address = address.decode("ascii")
         if address in self.network_users:
-            logging.debug("Removendo endereço %s da lista de usuários!", address)
             self.network_users.remove(address)
+            logging.debug("Removendo endereço %s da lista de usuários!", address)
+            logging.debug("Usuários ativos: %s", self.network_users)

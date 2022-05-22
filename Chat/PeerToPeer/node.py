@@ -120,6 +120,7 @@ class Node(metaclass=abc.ABCMeta):
         Repassa uma mensagem recebida para os nós conectados, exceto para o nó que enviou a
         mensagem.
         """
+        logging.debug("Retransmitindo mensagem")
         for user in self.connected_users:
             if user != sender:
                 user.sendall(NodeCommands.MESSAGE.value)
@@ -130,7 +131,7 @@ class Node(metaclass=abc.ABCMeta):
         Recebe e executa um comando especificado por um usuário.
         """
         action = self.recvall(node_sock, 3)
-        logging.debug("New action %s", action)
+        logging.debug("Received action %s", action)
         if action == NodeCommands.LINK.value:
             self.on_link(node_sock)
         elif action == NodeCommands.PING.value:
