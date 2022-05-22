@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+from enum import Enum
 import logging
 import select
 import socket
@@ -10,6 +11,15 @@ from typing import List
 from gateway import GatewayCommands
 
 from node import Address, Node, NodeCommands
+
+
+class ClientCommands(Enum):
+    """
+    Commandos que podem ser executados por um cliente.
+    """
+
+    # O nó pai notificou que irá sair da rede.
+    UNLINK = "UNL".encode("ascii")
 
 
 class Client(Node):
@@ -48,15 +58,14 @@ class Client(Node):
             for sock in read_sockets:
                 # Um novo nó deseja executar um comando.
                 if sock == self.server:
-                    logging.debug("Novo evento no servidor")
-                    node_sock, _ = self.on_command()
-                    if node_sock is not None:
+                    logging.debug("Novo evento no servidor/nós conectados/conexão")
+                    node_sock, _ = self.server.accept()
+                    action = self.on_command(node_sock)
+                    if action in (GatewayCommands.ADD.value, NodeCommands.LINK.value):
                         sockets_to_watch.append(node_sock)
-                # Nó de contato ou nós dependentes enviaram uma mensagem.
-                # Lê e redistribui.
-                if sock == self.connection or sock in self.connected_users:
+                elif sock == self.connection or sock in self.connected_users:
                     logging.debug("Nova mensagem de nós conectados ou conexão")
-                    self.on_command_connected(sock)
+                    self.on_command(sock)
                 # Existe um valor a ser lido no stdin.
                 elif sock == sys.stdin:
                     logging.debug("Novo evento no stdin")
@@ -66,14 +75,6 @@ class Client(Node):
             for notified_socket in exception_sockets:
                 sockets_to_watch.remove(notified_socket)
             sleep(1)
-
-    def repeat_message(self, sender: socket.socket, message: str):
-        """
-        Repete uma mensagem para todos os dependentes e o nó responsável.
-        """
-        super().repeat_message(sender, message)
-        if sender != self.connection:
-            self.send_with_size(self.connection, message)
 
     @staticmethod
     def message_to_address(serialized_users: List[bytes], start_position: int, message_size: int):
@@ -152,6 +153,8 @@ class Client(Node):
                 logging.error("Falha ao decodificar endereço do outro usuário!")
                 break
             start_position = end_position
+            if address == self.address:
+                continue
 
             latency = self.get_latency(address)
             logging.debug(
@@ -170,27 +173,51 @@ class Client(Node):
             min_latency,
         )
 
+        if self.connection is not None:
+            self.connection.close()
         self.connection = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.connection.connect(min_user)
         # Indica que esse nó quer se tornar dependente do nó com menor latência.
         self.connection.sendall(NodeCommands.LINK.value)
+
+    def on_command(self, node_sock: socket.socket) -> str:
+        """
+        Adiciona o comando add ao método on_command, o qual é responsável por adicionar novos nó a
+        rede.
+        """
+        action = super().on_command(node_sock)
+        if action == ClientCommands.UNLINK.value:
+            self.on_unlink()
+        return action
+
+    def on_unlink(self) -> None:
+        """
+        Executado quando um usuário desconectar. O usuário que desconectou é retirado da lista de
+        endereços disponíveis no gateway
+        """
+        logging.debug("Procurando uma nova conexão com a rede")
+        self.connect_to_lowest_latency()
 
     def notify_stop(self):
         """
         Indica para os usuários que dependem desse nó que eles devem buscar uma nova conexão para a
         rede.
         """
-        # Remove o client (que está sendo desconectado) da lista de endereços do gateway
-        for connected in self.connected_users:
-            connected.sendall(NodeCommands.REMOVE.value)
-            #notificar todos os sockets de "connected_users" que eles devem
-            #procurar um novo socket para serem dependentes
-        # Implementar notificação de saída.
-
+        if not self.connected_users:
+            return
+        logging.debug(
+            "Avisando gateway da saída desse nó!",
+        )
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as gateway:
-            # Avisao ao gateway que está havendo uma remoção
+            # Avisa ao ao gateway que está havendo uma remoção
             gateway.connect(self.gateway_addr)
             gateway.sendall(GatewayCommands.REMOVE.value)
 
             address = f"{self.address.host}:{self.address.port}".encode("ascii")
             self.send_with_size(gateway, address)
+
+        logging.debug(
+            "Avisando nós dependentes da saída desse nó!",
+        )
+        for user in self.connected_users:
+            user.sendall(ClientCommands.UNLINK.value)

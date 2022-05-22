@@ -7,7 +7,6 @@ import logging
 from datetime import datetime
 import sys
 from collections import namedtuple
-from time import sleep
 from typing import List, Tuple
 
 
@@ -23,10 +22,8 @@ class NodeCommands(Enum):
     PING = "PIN".encode("ascii")
     # Indica que outro nó quer utilizar esse nó para receber dados.
     LINK = "LIN".encode("ascii")
-    # Indica que o nó que está conectado vai sair.
-    REMOVE = "REM".encode("ascii")
+    # Um nó enviou uma mensagem.
     MESSAGE = "MSG".encode("ascii")
-
 
 
 class Node(metaclass=abc.ABCMeta):
@@ -55,9 +52,9 @@ class Node(metaclass=abc.ABCMeta):
         try:
             self.start()
             self.handle_connection()
-        except KeyboardInterrupt:
-            self.notify_stop()
-            pass
+        # TODO
+        # except KeyboardInterrupt:
+        #     pass
         finally:
             self.stop()
 
@@ -79,6 +76,7 @@ class Node(metaclass=abc.ABCMeta):
         """
         Fecha o socket de escuta do nó.
         """
+        self.connected_users = []
         if self.server is not None:
             self.server.close()
             self.server = None
@@ -105,9 +103,7 @@ class Node(metaclass=abc.ABCMeta):
         saída padrão e repassa a mensagem para os usuários conectados a esse nó.
         """
         try:
-            message_size = self.recvall(sock, 8)
-            message_size = int.from_bytes(message_size, "big", signed=False)
-            message = self.recvall(sock, message_size)
+            message, _ = self.recv_with_size(sock)
             # Se a mensagem possui zero bytes o servidor fechou a conexão.
             # Veja: https://docs.python.org/3/howto/sockets.html#using-a-socket
             if message == b"":
@@ -126,31 +122,26 @@ class Node(metaclass=abc.ABCMeta):
         """
         for user in self.connected_users:
             if user != sender:
+                user.sendall(NodeCommands.MESSAGE.value)
                 self.send_with_size(user, message)
 
-    def on_command(self) -> Tuple[socket.socket, str]:
+    def on_command(self, node_sock: socket.socket) -> str:
         """
         Recebe e executa um comando especificado por um usuário.
         """
-        node_sock, _ = self.server.accept()
         action = self.recvall(node_sock, 3)
+        logging.debug("New action %s", action)
         if action == NodeCommands.LINK.value:
             self.on_link(node_sock)
-        if action == NodeCommands.PING.value:
+        elif action == NodeCommands.PING.value:
             self.on_ping(node_sock)
             node_sock.close()
             node_sock = None
-        return node_sock, action
+        elif action == NodeCommands.MESSAGE.value:
+            self.on_message_received(node_sock)
+        return action
 
-    def on_command_connected(self, sock: socket.socket) -> Tuple[socket.socket, str]:
-        action = self.recvall(sock, 3)
-        if action == NodeCommands.REMOVE.value:
-            self.on_rem(sock)
-        if action == NodeCommands.MESSAGE.value:
-            self.on_message_received(sock)
-
-    @staticmethod
-    def on_ping(node_sock: socket.socket) -> None:
+    def on_ping(self, node_sock: socket.socket) -> None:
         """
         Método executado quando um usuário pede para esse nó realizar um teste de latência.
         """
@@ -158,9 +149,7 @@ class Node(metaclass=abc.ABCMeta):
             "Recebido pedido de latência",
         )
         timestamp = str(datetime.now()).encode("ascii")
-        timestamp_size = len(timestamp).to_bytes(8, "big", signed=False)
-        node_sock.sendall(timestamp_size)
-        node_sock.sendall(timestamp)
+        self.send_with_size(node_sock, timestamp)
 
     def on_link(self, node_sock: socket.socket) -> None:
         """
@@ -198,18 +187,3 @@ class Node(metaclass=abc.ABCMeta):
             buffer = sock.recv(size - len(message))
             message += buffer
         return message
-
-    def notify_stop(self):
-        """
-        Reage a eventos em diferentes sockets e chama os métodos apropriados.
-        """
-        return NotImplementedError("Função notify_stop deve ser implementada!")
-
-    def on_rem(self, node_sock: socket.socket) -> None:
-        """
-        Executado quando um usuário desconectar. O usuário que desconectou é retirado da lista de 
-        endereços disponíveis no gateway
-        """
-
-        logging.debug("Procurando uma nova conexão para %s", self.server)
-        self.connect_to_lowest_latency()

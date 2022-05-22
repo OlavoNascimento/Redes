@@ -6,9 +6,9 @@ import select
 import sys
 import socket
 from time import sleep
-from typing import List, Tuple
+from typing import List
 
-from node import Address, Node
+from node import Address, Node, NodeCommands
 
 
 class GatewayCommands(Enum):
@@ -39,6 +39,10 @@ class Gateway(Node):
         )
         super().run()
 
+    def stop(self):
+        super().stop()
+        self.network_users = []
+
     def handle_connection(self):
         sockets_to_watch = [sys.stdin, self.server]
 
@@ -52,13 +56,14 @@ class Gateway(Node):
                 # Um novo nó deseja executar um comando.
                 if sock == self.server:
                     logging.debug("Novo evento no servidor")
-                    node_sock, _ = self.on_command()
-                    if node_sock is not None:
+                    node_sock, _ = self.server.accept()
+                    action = self.on_command(node_sock)
+                    if action in (GatewayCommands.ADD.value, NodeCommands.LINK.value):
                         sockets_to_watch.append(node_sock)
                 # Um nó existente transmitiu uma mensagem.
                 elif sock in self.connected_users:
                     logging.debug("Nova mensagem de nós conectados")
-                    self.on_command_connected(sock)
+                    self.on_command(sock)
                 # Existe um valor a ser lido no stdin.
                 elif sock == sys.stdin:
                     logging.debug("Novo evento no stdin")
@@ -71,7 +76,7 @@ class Gateway(Node):
 
     def send_current_users(self, new_user: socket.socket):
         """
-        Envia a lista de usuários conectados para um nóvo nó.
+        Envia a lista de usuários conectados para um novo nó.
         """
         logging.debug("Enviando lista de usuários: %s", self.network_users)
         message: List[bytes] = b""
@@ -87,51 +92,39 @@ class Gateway(Node):
             "Lista de usuários serializada: %s",
             message,
         )
-        message_size = len(message).to_bytes(8, "big", signed=False)
-        new_user.sendall(message_size)
-        new_user.sendall(message)
+        self.send_with_size(new_user, message)
 
-    def on_command(self) -> Tuple[socket.socket, str]:
+    def on_command(self, node_sock: socket.socket) -> str:
         """
-        Adiciona o comando add ao método on_command, o qual é responsável por adicionar novos nó a
-        rede.
+        Adiciona o comando add e remove ao método on_command.
         """
-        node_sock, action = super().on_command()
+        action = super().on_command(node_sock)
+        logging.debug("New action %s", action)
         if action == GatewayCommands.ADD.value:
             self.on_add(node_sock)
-        if action == GatewayCommands.REMOVE.value:
-            self.on_rem(node_sock)
-        return node_sock, action
+        elif action == GatewayCommands.REMOVE.value:
+            self.on_remove(node_sock)
+        return action
 
     def on_add(self, node_sock: socket.socket) -> None:
         """
         Executado quando um usuário quer fazer parte da rede. Para isso o novo usuário é adicionado
         a lista de nós da rede.
         """
-        self.send_current_users(node_sock)
         address, _ = self.recv_with_size(node_sock)
         address = address.decode("ascii")
-        logging.debug("Adicionando endereço %s a lista de usuários!", address)
+        if address not in self.network_users:
+            logging.debug("Adicionando endereço %s a lista de usuários!", address)
+            self.network_users.append(address)
+        self.send_current_users(node_sock)
 
-        self.network_users.append(address)
-
-    def on_rem(self, node_sock: socket.socket) -> None:
+    def on_remove(self, node_sock: socket.socket) -> None:
         """
-        Executado quando um usuário desconectar. O usuário que desconectou é retirado da lista de 
+        Executado quando um usuário desconectar. O usuário que desconectou é retirado da lista de
         endereços disponíveis no gateway
         """
-        address_size = self.recvall(node_sock, 8)
-        address_size = int.from_bytes(address_size, "big", signed=False)
-
-        address = self.recvall(node_sock, address_size).decode("ascii")
+        address, _ = self.recv_with_size(node_sock)
+        address = address.decode("ascii")
         if address in self.network_users:
             logging.debug("Removendo endereço %s da lista de usuários!", address)
             self.network_users.remove(address)
-
-    def notify_stop(self):
-        """
-        Indica para os usuários que dependem desse nó que eles devem buscar uma nova conexão para a
-        rede.
-        """
-        # TODO
-        # Implementar notificação de saída.
