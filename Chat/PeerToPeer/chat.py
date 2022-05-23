@@ -15,7 +15,7 @@ def main():
         "%(levelname)s - [%(filename)s:%(lineno)s - %(funcName)s()] - %(asctime)s - %(message)s"
     )
     # Habilita mensagens de debug
-    # logging.basicConfig(level=logging.DEBUG, format=FORMAT)
+    logging.basicConfig(level=logging.DEBUG, format=FORMAT)
 
     username = input("Nome de usuário: ")
     is_gateway = input("Host de entrada? (s/N): ").lower()

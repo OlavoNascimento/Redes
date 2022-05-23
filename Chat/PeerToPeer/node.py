@@ -152,8 +152,8 @@ class Node(metaclass=abc.ABCMeta):
         logging.debug(
             "Recebido pedido de latência",
         )
-        timestamp = str(datetime.now()).encode("ascii")
-        self.send_with_size(node_sock, timestamp)
+        byte = b"1" * 10
+        self.send_with_size(node_sock, byte)
 
     def on_link(self, node_sock: socket.socket) -> None:
         """
