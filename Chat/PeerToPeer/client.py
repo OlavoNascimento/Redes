@@ -28,6 +28,7 @@ class Client(Node):
     def start(self):
         super().start()
         self.connect_to_lowest_latency()
+        print("Conectado ao gateway")
 
     def stop(self):
         self.notify_stop()
